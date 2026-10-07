@@ -26,10 +26,15 @@ const musicSchema = new Schema(
             url: { type: String, required: true },
             publicId: { type: String, required: true },
         },
+        coverPhoto: {
+            url: { type: String, required: true },
+            publicId: { type: String, required: true },
 
+        },
         uploadedBy: {
             type: Schema.Types.ObjectId,
-            ref: 'User',
+            ref: 'Artist',
+            required: true
         }
     },
     {

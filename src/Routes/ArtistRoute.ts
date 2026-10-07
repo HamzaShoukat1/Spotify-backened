@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { verifyjwt } from "../Middlewares/auth.middleware.js";
-import { AddMusic, BecameAnArtist, GetArtistProfile, UpdateArtistProfile } from "../Controllers/Artist.Controller.js";
+import { BecameAnArtist, GetArtistProfile, getPublicArtistDetails, getPublicArtists, UpdateArtistProfile } from "../Controllers/Artist.Controller.js";
 import { upload } from "../Middlewares/upload.middleware.js";
 
 const router = Router()
@@ -23,10 +23,9 @@ router.route("/profile").get(verifyjwt, GetArtistProfile).patch(
 	]),
 	UpdateArtistProfile,
 )
-router.route("/music").post(verifyjwt,
-	upload.single("music"),
-	AddMusic)
 
+router.route("/profileforuser/:artistId").get(getPublicArtistDetails);
+router.route("/public").get(getPublicArtists);
 
 
 

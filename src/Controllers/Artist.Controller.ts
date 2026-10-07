@@ -5,6 +5,7 @@ import { asynchandler, } from "../utils/Asynchandler.js";
 import { uploadCloudinary } from "../utils/upload.cloudinary.js";
 import { Music } from "../Models/music.model.js";
 import { User } from "../Models/user.model.js";
+import mongoose from "mongoose";
 
 const BecameAnArtist = asynchandler(async (req, res) => {
     const { name, artistType, genres, bio } = req.body;
@@ -139,42 +140,53 @@ const UpdateArtistProfile = asynchandler(async (req, res) => {
     );
 });
 
-const AddMusic = asynchandler(async (req, res) => {
-    const { musicTitle, primaryArtistName, Genre, Language } = req.body;
+const getPublicArtistDetails = asynchandler(async (req, res) => {
+    const { artistId } = req.params;
 
-    const useruploadmusic = req.file;
-
-    if (
-        !useruploadmusic ||
-        !musicTitle?.trim() ||
-        !primaryArtistName?.trim() ||
-        !Genre?.trim() ||
-        !Language?.trim()
-    ) {
-        throw new Apierror(400, "All music fields and the audio file are required");
+    if (!artistId || Array.isArray(artistId)) {
+        throw new Apierror(400, "Artist ID is required");
     }
 
-    const musicUpload = await uploadCloudinary(useruploadmusic.buffer, "spotify/artists/music");
-
-    if (!musicUpload || !musicUpload.url) {
-        throw new Apierror(500, "Failed to upload audio file to Cloudinary");
+    if (!mongoose.Types.ObjectId.isValid(artistId)) {
+        throw new Apierror(400, "Invalid artist ID");
     }
 
-    const MusicCreation = await Music.create({
-        music: {
-            url: musicUpload.url,
-            publicId: musicUpload.publicId
-        },
-        musicTitle,
-        primaryArtistName,
-        Genre,
-        Language
-    });
+    const artist = await Artist.findById(artistId)
+        .select("-profileImage.publicId -coverImage.publicId");
 
-    return res.status(201).json(
-        new Apiresponse(201, MusicCreation, "Music added successfully")
+    if (!artist) {
+        throw new Apierror(404, "Artist profile not found");
+    }
+
+    const artistMusic = await Music.find({ uploadedBy: artist.user })
+        .select("musicTitle  coverPhoto.url ")
+        .sort({ createdAt: -1 });
+
+    return res.status(200).json(
+        new Apiresponse(
+            200,
+            { ...artist.toObject(), artistmusic: artistMusic },
+            "Artist details retrieved successfully"
+        )
     );
 });
+
+
+const getPublicArtists = asynchandler(async (req, res) => {
+    const artists = await Artist.find()
+        .select("name  profileImage.url")
+        .sort({ createdAt: -1 });
+
+    return res.status(200).json(
+        new Apiresponse(200, artists, "Artists retrieved successfully")
+    );
+});
+
+
+
+
+
+
 
 
 
@@ -182,5 +194,6 @@ export {
     BecameAnArtist,
     GetArtistProfile,
     UpdateArtistProfile,
-    AddMusic
+    getPublicArtistDetails,
+    getPublicArtists,
 }

@@ -14,6 +14,7 @@ import { errorHandler } from "./Middlewares/error.middleware.js";
 // import uploadRoutes from "./Routes/uploadRoutes.js";
 // import StatsRoutes from "./Routes/State.Routes.js";
 // import { apiLimiter } from "./Middlewares/rate.Limitter.js";
+import MusicRoute from "./Routes/MusicRoute.js"
 import ArtistRoute from "./Routes/ArtistRoute.js"
 
 dotenv.config();
@@ -96,6 +97,7 @@ app.use(
 
 app.use("/auth", AuthRoutes);
 app.use("/artist", ArtistRoute)
+app.use("/music",MusicRoute)
 
 // app.use("/product", ProductRoutes);
 

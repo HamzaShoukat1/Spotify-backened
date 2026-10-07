@@ -29,7 +29,7 @@ const userSchema = new Schema<IUser>(
     gender: {
       type: String,
       enum: ["Male", "Female", "Prefer not to say"],
-      required:true
+      required: true
 
     },
     name: {

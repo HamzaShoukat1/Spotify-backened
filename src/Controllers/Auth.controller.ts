@@ -97,7 +97,7 @@ const SignUp = asynchandler(async (req, res) => {
 const Signin = asynchandler(async (req, res) => {
     const { email } = req.body;
 
-    if (!email ) {
+    if (!email) {
         throw new Apierror(400, "Email  is required");
     }
 
@@ -160,6 +160,12 @@ const Logout = asynchandler(async (req, res) => {
 });
 
 const getCurrentUser = asynchandler(async (req, res) => {
+
+    // get user from user's table
+
+    // if artist get artist's profile data 
+
+    // combine into 1 object and then return it
     return res.status(200).json(
         new Apiresponse(200, req.user, "current User fetched successfully")
 
