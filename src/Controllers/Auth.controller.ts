@@ -170,6 +170,22 @@ const getCurrentUser = asynchandler(async (req, res) => {
         new Apiresponse(200, req.user, "current User fetched successfully")
 
     )
+});
+
+const completeOnboarding = asynchandler(async (req, res) => {
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        { onboarding: true },
+        { returnDocument: 'after' }
+    ).select("-password -refreshToken")
+
+    if (!user) {
+        throw new Apierror(404, "User not Found")
+    }
+
+    return res.status(200).json(
+        new Apiresponse(200, user, "Onboarding completed successfully")
+    )
 
 });
 
@@ -179,5 +195,6 @@ export {
     Signin,
     Logout,
     getCurrentUser,
+    completeOnboarding,
     // getAllUsers
 }

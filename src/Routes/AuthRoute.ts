@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getCurrentUser, Logout, Signin, SignUp } from "../Controllers/Auth.controller.js";
+import { completeOnboarding, getCurrentUser, Logout, Signin, SignUp } from "../Controllers/Auth.controller.js";
 import { verifyjwt } from "../Middlewares/auth.middleware.js";
 // import { verifyjwt } from "../Middlewares/auth.middleware.js";
 
@@ -10,6 +10,7 @@ router.route("/signup").post(SignUp)
 router.route("/login").post(Signin)
 
 router.route("/currentUser").get(verifyjwt, getCurrentUser)
+router.route("/onboarding").patch(verifyjwt, completeOnboarding)
 // router.get(
 //     "/all-users",
 //     verifyjwt,

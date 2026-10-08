@@ -1,11 +1,12 @@
 import bcrypt from "bcryptjs";
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, Document, Mongoose } from "mongoose";
 
 export interface IUser extends Document {
   email: string;
   password: string;
   gender: "Male" | "Female" | "Prefer not to say",
   name: string
+  onboarding: boolean;
   role: "user" | "artist" | "admin";
   refreshToken?: string;
   isPasswordCorrect(password: string): Promise<boolean>;
@@ -37,6 +38,11 @@ const userSchema = new Schema<IUser>(
       required: true
     },
 
+    onboarding: {
+      type: Boolean,
+      default: false,
+    },
+
     role: {
       type: String,
       enum: ["user", "artist", "admin"],
@@ -47,6 +53,9 @@ const userSchema = new Schema<IUser>(
       type: String,
       default: null,
     },
+    // preference: {
+    //   type: Schema.Types.Mixed, default: () => ({})
+    // }
   },
   {
     timestamps: true,
