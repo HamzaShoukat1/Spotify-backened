@@ -27,13 +27,7 @@ const ArtistSchema = new Schema(
             url: { type: String },
             publicId: { type: String, required: true },
         },
-        // artistmusic: [
-        //     {
-        //         type: Schema.Types.ObjectId,
-        //         ref: 'Music',
-        //         required: true
-        //     }
-        // ]
+    
     },
     {
         timestamps: true,

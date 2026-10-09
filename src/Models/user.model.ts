@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import mongoose, { Schema, Document, Mongoose } from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 
 export interface IUser extends Document {
   email: string;
@@ -7,6 +7,7 @@ export interface IUser extends Document {
   gender: "Male" | "Female" | "Prefer not to say",
   name: string
   onboarding: boolean;
+  favoriteArtists: mongoose.Types.ObjectId[];
   role: "user" | "artist" | "admin";
   refreshToken?: string;
   isPasswordCorrect(password: string): Promise<boolean>;
@@ -42,6 +43,11 @@ const userSchema = new Schema<IUser>(
       type: Boolean,
       default: false,
     },
+
+    favoriteArtists: [{
+      type: Schema.Types.ObjectId,
+      ref: "Artist",
+    }],
 
     role: {
       type: String,

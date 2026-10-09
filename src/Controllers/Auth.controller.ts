@@ -3,6 +3,7 @@ import { generateAccessToken, generateRefreshToken } from "../services/token.ser
 
 
 import { User } from "../Models/user.model.js"
+import mongoose from "mongoose";
 
 
 const generateAccessAndRefreshToken = async (userId: string) => {
@@ -75,7 +76,7 @@ const SignUp = asynchandler(async (req, res) => {
 
     const { accessToken, refreshToken } =
         await generateAccessAndRefreshToken(user._id.toString());
-    const createUser = await User.findById(user._id).select("-password -refreshToken")
+    const createUser = await User.findById(user._id).select("-password -refreshToken -favoriteArtists")
     if (!createUser) {
         throw new Apierror(500, "Something wrong while register User")
     };
@@ -173,9 +174,33 @@ const getCurrentUser = asynchandler(async (req, res) => {
 });
 
 const completeOnboarding = asynchandler(async (req, res) => {
+    const { favoriteArtists } = req.body;
+
+    if (!Array.isArray(favoriteArtists) || favoriteArtists.length < 3) {
+        throw new Apierror(400, "Select at least 3 favorite artists");
+    }
+
+    if (
+        favoriteArtists.some((artistId) =>
+           !mongoose.Types.ObjectId.isValid(artistId)
+        )
+    ) {
+        throw new Apierror(400, "Favorite artists contain an invalid ID");
+    }
+
+    const uniqueFavoriteArtists = [...new Set(favoriteArtists)];
+    if (uniqueFavoriteArtists.length !== favoriteArtists.length) {
+        throw new Apierror(400, "Favorite artists must be unique");
+    }
+
     const user = await User.findByIdAndUpdate(
         req.user?._id,
-        { onboarding: true },
+        {
+            $set: {
+                onboarding: true,
+                favoriteArtists: uniqueFavoriteArtists,
+            },
+        },
         { returnDocument: 'after' }
     ).select("-password -refreshToken")
 

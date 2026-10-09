@@ -16,7 +16,7 @@ import { errorHandler } from "./Middlewares/error.middleware.js";
 // import { apiLimiter } from "./Middlewares/rate.Limitter.js";
 import MusicRoute from "./Routes/MusicRoute.js"
 import ArtistRoute from "./Routes/ArtistRoute.js"
-
+import SearchRoute from "./Routes/SearchRoute.js"
 dotenv.config();
 
 const app = express();
@@ -97,7 +97,8 @@ app.use(
 
 app.use("/auth", AuthRoutes);
 app.use("/artist", ArtistRoute)
-app.use("/music",MusicRoute)
+app.use("/music", MusicRoute)
+app.use("/search", SearchRoute)
 
 // app.use("/product", ProductRoutes);
 
