@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { Music } from "../Models/music.model.js";
+import { Artist } from "../Models/artist.model.js";
 import { Apierror } from "../utils/Apierror.js";
 import { Apiresponse } from "../utils/Apiresponse.js";
 import { asynchandler } from "../utils/Asynchandler.js";
@@ -67,15 +68,16 @@ const AddMusic = asynchandler(async (req, res) => {
 
 
 const getMusicDataForHome = asynchandler(async (req, res) => {
-    const artists = await Music.find()
-        .select("musicTitle  coverPhoto.url")
-        .sort({ createdAt: -1 });
+    const songs = await Music.find()
+        .select("_id musicTitle coverPhoto.url")
+        .sort({ createdAt: -1 })
+        .limit(15)
+        .lean();
 
     return res.status(200).json(
-        new Apiresponse(200, artists, "music data for home retrieved successfully")
+        new Apiresponse(200, songs, "Homepage music retrieved successfully")
     );
-
-})
+});
 
 
 
@@ -87,19 +89,27 @@ const getdetailsfortracksplaying = asynchandler(async (req, res) => {
     }
 
     if (!mongoose.Types.ObjectId.isValid(musicId)) {
-        throw new Apierror(400, "Invalid artist ID");
+        throw new Apierror(400, "Invalid music ID");
     }
 
-    const artist = await Music.findById(musicId).select(
-        "musicTitle primaryArtistName music.url coverPhoto.url"
+    const music = await Music.findById(musicId).select(
+        "musicTitle primaryArtistName Genre Language music.url coverPhoto.url uploadedBy"
     );
 
-    if (!artist) {
-        throw new Apierror(404, "Artist profile not found");
+    if (!music) {
+        throw new Apierror(404, "Music not found");
     }
 
+    const artist = await Artist.findOne({ user: music.uploadedBy })
+        .select("name artistType genres bio profileImage.url coverImage.url")
+        .lean();
+
     return res.status(200).json(
-        new Apiresponse(200, artist, "Music details retrieved successfully")
+        new Apiresponse(
+            200,
+            { ...music.toObject(), artist: artist ?? null },
+            "Music details retrieved successfully"
+        )
     );
 });
 

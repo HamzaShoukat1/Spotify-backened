@@ -175,7 +175,10 @@ const getPublicArtistDetails = asynchandler(async (req, res) => {
 const getPublicArtists = asynchandler(async (req, res) => {
     const artists = await Artist.find()
         .select("name  profileImage.url")
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean();
+
 
     return res.status(200).json(
         new Apiresponse(200, artists, "Artists retrieved successfully")

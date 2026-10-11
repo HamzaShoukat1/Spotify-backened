@@ -32,6 +32,8 @@ const ArtistSchema = new Schema(
     {
         timestamps: true,
     });
+    ArtistSchema.index({ createdAt: -1 })
+
 
 
 

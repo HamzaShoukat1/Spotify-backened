@@ -41,6 +41,7 @@ const musicSchema = new Schema(
         timestamps: true,
     }
 );
+musicSchema.index({ createdAt: -1 })
 
 export const Music = mongoose.model('Music', musicSchema);
 
