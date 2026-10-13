@@ -93,7 +93,7 @@ const getdetailsfortracksplaying = asynchandler(async (req, res) => {
     }
 
     const music = await Music.findById(musicId).select(
-        "musicTitle primaryArtistName Genre Language music.url coverPhoto.url uploadedBy"
+        "musicTitle primaryArtistName Genre Language music.url coverPhoto.url uploadedBy isliked"
     );
 
     if (!music) {

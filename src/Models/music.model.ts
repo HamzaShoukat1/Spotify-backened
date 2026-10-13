@@ -33,9 +33,14 @@ const musicSchema = new Schema(
         },
         uploadedBy: {
             type: Schema.Types.ObjectId,
-            ref: 'Artist',
+            ref: 'User',
             required: true
-        }
+        },
+        likedBy: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        }],
+
     },
     {
         timestamps: true,

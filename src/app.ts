@@ -17,6 +17,8 @@ import { errorHandler } from "./Middlewares/error.middleware.js";
 import MusicRoute from "./Routes/MusicRoute.js"
 import ArtistRoute from "./Routes/ArtistRoute.js"
 import SearchRoute from "./Routes/SearchRoute.js"
+import AnalyticsRoute from "./Routes/Analytics.Route.js"
+import LikesRoute from "./Routes/Likes.Route.js"
 dotenv.config();
 
 const app = express();
@@ -99,6 +101,8 @@ app.use("/auth", AuthRoutes);
 app.use("/artist", ArtistRoute)
 app.use("/music", MusicRoute)
 app.use("/search", SearchRoute)
+app.use("/stream", AnalyticsRoute)
+app.use("/song", LikesRoute)
 
 // app.use("/product", ProductRoutes);
 
