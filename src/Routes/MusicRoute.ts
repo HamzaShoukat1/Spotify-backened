@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { verifyjwt } from "../Middlewares/auth.middleware.js";
 import { upload } from "../Middlewares/upload.middleware.js";
-import { AddMusic, getdetailsfortracksplaying, getMusicDataForHome } from "../Controllers/Music.Controller.js";
+import { AddMusic, getdetailsfortracksplaying, getMusicDataForHome, getRecentlyPlayedSongs } from "../Controllers/Music.Controller.js";
 
 
 
@@ -22,9 +22,10 @@ router.route("/add").post(verifyjwt,
     ]),
     AddMusic)
 
-    router.route("/musicdetailforhome").get(getMusicDataForHome)
+router.route("/musicdetailforhome").get(getMusicDataForHome)
 
-    router.route("/track/:musicId").get(getdetailsfortracksplaying)
+router.route("/track/:musicId").get(getdetailsfortracksplaying)
+router.route("/getrecentPlayingSong").get(verifyjwt, getRecentlyPlayedSongs)
 
 
 export default router

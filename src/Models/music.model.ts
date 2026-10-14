@@ -36,10 +36,7 @@ const musicSchema = new Schema(
             ref: 'User',
             required: true
         },
-        likedBy: [{
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User'
-        }],
+     
 
     },
     {

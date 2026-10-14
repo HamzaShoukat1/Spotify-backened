@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { verifyjwt } from "../Middlewares/auth.middleware.js";
-import { getLikedSongs, LikedAndUnlikeSong } from "../Controllers/Like.Controller.js";
+import { getLikedSongs, likeSong, unlikeSong } from "../Controllers/Like.Controller.js";
 
 
 
@@ -14,8 +14,12 @@ import { getLikedSongs, LikedAndUnlikeSong } from "../Controllers/Like.Controlle
 
 const router = Router()
 
-router.route("/toggle/:musicId").post(verifyjwt, LikedAndUnlikeSong)
-router.route("/getallikedsongs").get(verifyjwt, getLikedSongs)
+// router.route("/toggle/:musicId").post(verifyjwt, LikedAndUnlikeSong)
+// router.route("/getallikedsongs").get(verifyjwt, getLikedSongs)
+
+router.put("/like/:musicId", verifyjwt, likeSong);
+router.delete("/unlike/:musicId", verifyjwt, unlikeSong);
+router.get("/liked", verifyjwt, getLikedSongs);
 
 
 
