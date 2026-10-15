@@ -44,10 +44,10 @@ const trackStream = asynchandler(async (req, res) => {
         listenerId,
     });
 
-    await RecentSongsPlaying.create({
-        user: listenerId,
-        music: music._id,
-    });
+    // await RecentSongsPlaying.create({
+    //     user: listenerId,
+    //     music: music._id,
+    // });
 
 
 

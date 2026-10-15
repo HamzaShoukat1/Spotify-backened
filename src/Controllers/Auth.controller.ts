@@ -182,7 +182,7 @@ const completeOnboarding = asynchandler(async (req, res) => {
 
     if (
         favoriteArtists.some((artistId) =>
-           !mongoose.Types.ObjectId.isValid(artistId)
+            !mongoose.Types.ObjectId.isValid(artistId)
         )
     ) {
         throw new Apierror(400, "Favorite artists contain an invalid ID");
@@ -215,11 +215,38 @@ const completeOnboarding = asynchandler(async (req, res) => {
 });
 
 
+const changeUsername = asynchandler(async (req, res) => {
+    const { name } = req.body;
+
+    if (!name || name.trim() === "") {
+        throw new Apierror(400, "name is required");
+    }
+
+    const updateFields: Record<string, any> = {};
+    updateFields.name = name;
+
+    const user = await User.findByIdAndUpdate(
+        req.user._id,
+        { $set: updateFields },
+        { returnDocument: 'after', runValidators: true }
+    ).select("-password -refreshToken -favoriteArtists -onboarding -email -gender -role");
+
+    if (!user) {
+        throw new Apierror(404, "User not found");
+    }
+    await user.save()
+    return res.status(200).json(
+        new Apiresponse(200, user, "Username updated successfully")
+    );
+});
+
+
+
 export {
     SignUp,
     Signin,
     Logout,
     getCurrentUser,
     completeOnboarding,
-    // getAllUsers
+    changeUsername
 }
