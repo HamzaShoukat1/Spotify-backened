@@ -1,32 +1,64 @@
-import { BrevoClient } from '@getbrevo/brevo';
 import 'dotenv/config';
 
-// 1. Fail early if required environment variables are missing 
-if (!process.env.BREVO_API_KEY || !process.env.SENDER_EMAIL) {
-    throw new Error("Missing required mailer environment variables: BREVO_API_KEY or SENDER_EMAIL");
-}
+const brevoEndpoint = "https://api.brevo.com/v3/smtp/email";
 
-// 2. Instantiate the unified Brevo client correctly for the modern SDK 
-const brevo = new BrevoClient({
-    apiKey: process.env.BREVO_API_KEY
-});
+const maskEmail = (email: string) => {
+  const [name, domain] = email.split("@");
+  if (!name || !domain) return "[invalid-email]";
+  return `${name.slice(0, 2)}***@${domain}`;
+};
 
 /**  
- * Sends a secure OTP verification email via Brevo with Spotify-themed HTML.  
  * @param {string} recipientEmail - The recipient's email address.  
  * @param {string|number} otp - The One-Time Password to send.  
  * @returns {Promise<{success: boolean, messageId?: string, error?: any}>}  
  */
-export const sendOtpEmail = async (recipientEmail: any, otp: any) => {
-    try {
-        const data = await brevo.transactionalEmails.sendTransacEmail({
-            subject: "Your Spotify Verification Code",
-            sender: {
-                name: "Spotify",
-                email: process.env.SENDER_EMAIL
-            },
-            to: [{ email: recipientEmail }],
-            htmlContent: `         
+export const sendOtpEmail = async (
+  recipientEmail: string,
+  otp: string,
+  purpose: "verify" | "change_email" = "verify"
+) => {
+  const maskedRecipient = maskEmail(recipientEmail);
+  const subject = purpose === "change_email"
+    ? "Confirm your Spotify email change"
+    : "Your Spotify Verification Code";
+  try {
+    const brevoApiKey = process.env.BREVO_API_KEY;
+    const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.SENDER_EMAIL;
+
+    if (!brevoApiKey || !senderEmail) {
+      console.error("[Brevo] OTP email skipped: mailer is not configured", {
+        recipient: maskedRecipient,
+        purpose,
+        missing: [
+          !brevoApiKey ? "BREVO_API_KEY" : null,
+          !senderEmail ? "BREVO_SENDER_EMAIL" : null,
+        ].filter(Boolean),
+      });
+      return {
+        success: false,
+        error: "Mailer is not configured. Set BREVO_API_KEY and BREVO_SENDER_EMAIL",
+      };
+    }
+
+    console.info("[Brevo] Sending OTP email", {
+      recipient: maskedRecipient,
+      purpose,
+      subject,
+    });
+
+    const response = await fetch(brevoEndpoint, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "api-key": brevoApiKey,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        sender: { email: senderEmail, name: "Spotify" },
+        to: [{ email: recipientEmail }],
+        subject,
+        htmlContent: `         
         <!DOCTYPE html>         
         <html lang="en">         
         <head>           
@@ -50,7 +82,7 @@ export const sendOtpEmail = async (recipientEmail: any, otp: any) => {
                   <!-- Title -->
                   <tr>
                     <td align="center" style="padding-bottom: 20px;">
-                      <h2 style="color: #FFFFFF; font-size: 24px; font-weight: 700; margin: 0; letter-spacing: -0.5px;">Verify your account</h2>
+                        <h2 style="color: #FFFFFF; font-size: 24px; font-weight: 700; margin: 0; letter-spacing: -0.5px;">${purpose === "change_email" ? "Confirm your email change" : "Verify your account"}</h2>
                     </td>
                   </tr>
 
@@ -58,7 +90,7 @@ export const sendOtpEmail = async (recipientEmail: any, otp: any) => {
                   <tr>
                     <td align="center" style="padding-bottom: 30px;">
                       <p style="color: #B3B3B3; font-size: 15px; line-height: 1.5; margin: 0;">
-                        Please use the following One-Time Password (OTP) to complete your verification setup.
+                        Please use the following One-Time Password (OTP) to ${purpose === "change_email" ? "confirm your email change" : "complete your verification setup"}.
                       </p>
                     </td>
                   </tr>
@@ -76,7 +108,7 @@ export const sendOtpEmail = async (recipientEmail: any, otp: any) => {
                   <tr>
                     <td align="center" style="padding-bottom: 20px;">
                       <p style="color: #B3B3B3; font-size: 13px; margin: 0;">
-                        This code is valid for <strong style="color: #FFFFFF;">5 minutes</strong>. 
+                        This code is valid for <strong style="color: #FFFFFF;">10 minutes</strong>.
                         For security, do not share this code with anyone.
                       </p>
                     </td>
@@ -104,14 +136,30 @@ export const sendOtpEmail = async (recipientEmail: any, otp: any) => {
           </table>
         </body>         
         </html>       
-      `
-        });
+          `,
+      }),
+    });
 
-        // Modern SDK returns the response properties directly     
-        return { success: true, messageId: data.messageId };
-    } catch (error: any) {
-        // Log structured errors cleanly     
-        console.error("Brevo Email Failure:", error.message || error);
-        return { success: false, error: error.message || error };
+    const result = await response.json() as { messageId?: string; message?: string };
+    if (!response.ok) {
+      throw new Error(result.message || `Brevo request failed with status ${response.status}`);
     }
+
+    console.info("[Brevo] OTP email sent", {
+      recipient: maskedRecipient,
+      purpose,
+      messageId: result.messageId,
+    });
+    return { success: true, messageId: result.messageId };
+  } catch (error: any) {
+    const errorMessage = error?.message || String(error);
+    console.error("[Brevo] OTP email failed", {
+      recipient: maskedRecipient,
+      purpose,
+      error: errorMessage,
+      code: error?.code,
+      statusCode: error?.response?.statusCode || error?.statusCode,
+    });
+    return { success: false, error: errorMessage };
+  }
 };

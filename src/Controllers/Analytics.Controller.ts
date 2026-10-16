@@ -5,7 +5,6 @@ import { Apiresponse } from "../utils/Apiresponse.js";
 import mongoose from "mongoose";
 import { Artist } from "../Models/artist.model.js";
 import { Music } from "../Models/music.model.js";
-import { RecentSongsPlaying } from "../Models/RecentSongPlaying.model.js";
 
 const trackStream = asynchandler(async (req, res) => {
     const { musicId } = req.body;

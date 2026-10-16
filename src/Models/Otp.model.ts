@@ -15,23 +15,21 @@ const otpSchema = new mongoose.Schema(
         purpose: {
             type: String,
             required: true,
-            enum: ['login', 'verify_email']
+            enum: ['login', 'verify_email', 'change_email_current', 'change_email_new']
         },
         attempts: {
             type: Number,
             default: 0,
             required: true
-        },
-        createdAt: {
-            type: Date,
-            default: Date.now,
-            expires: 600 
         }
-
     },
-    { timestamps: { createdAt: false, updatedAt: true } }
+    {
+        timestamps: true
+    }
 );
 
-otpSchema.index({ email: 1 });
+otpSchema.index({ createdAt: 1 }, { expireAfterSeconds: 600 });
+
+otpSchema.index({ email: 1, purpose: 1 });
 
 export const Otp = mongoose.model('Otp', otpSchema);
