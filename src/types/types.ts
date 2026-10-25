@@ -1,3 +1,4 @@
 export type TokenPayLoad = {
-    _id:string
+    _id:string,
+    sessionId:string
 }

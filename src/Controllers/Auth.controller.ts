@@ -1,25 +1,38 @@
 import { Apierror, Apiresponse, asynchandler } from "../utils/index.js"
 import { generateAccessToken, generateRefreshToken } from "../services/token.service.js"
+import crypto from "node:crypto";
+import { Session } from "../Models/session.model.js";
 
 
 import { User } from "../Models/user.model.js"
 import mongoose from "mongoose";
 
+const hashRefreshToken = (token: string) => {
+    return crypto.createHash("sha256").update(token).digest("hex");
+};
 
 const generateAccessAndRefreshToken = async (userId: string) => {
     try {
         //get user
         const user = await User.findById(userId)
         if (!user) throw new Apierror(404, "User not Found")
-
+        const sessionId = new mongoose.Types.ObjectId().toString();
 
         const accessToken = generateAccessToken({
-            _id: user._id.toString()
+            _id: user._id.toString(),
+            sessionId
         });
         const refreshToken = generateRefreshToken({
-            _id: user._id.toString()
+            _id: user._id.toString(),
+            sessionId
         });
-        user.refreshToken = refreshToken
+        await Session.create({
+            _id: sessionId,
+            userId,
+            refreshTokenHash: hashRefreshToken(refreshToken),
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        });
+
         await user.save({ validateBeforeSave: false })
         return { accessToken, refreshToken }
 
@@ -76,7 +89,7 @@ const SignUp = asynchandler(async (req, res) => {
 
     const { accessToken, refreshToken } =
         await generateAccessAndRefreshToken(user._id.toString());
-    const createUser = await User.findById(user._id).select("-password -refreshToken -favoriteArtists")
+    const createUser = await User.findById(user._id).select("-password  -favoriteArtists")
     if (!createUser) {
         throw new Apierror(500, "Something wrong while register User")
     };
@@ -96,68 +109,80 @@ const SignUp = asynchandler(async (req, res) => {
 
 
 const Signin = asynchandler(async (req, res) => {
-    const { email } = req.body;
+  const { email, password } = req.body;
 
-    if (!email) {
-        throw new Apierror(400, "Email  is required");
-    }
+  if (!email || !password) {
+    throw new Apierror(400, "Email and password are required");
+  }
 
-    const user = await User.findOne({
-        email: email.toLowerCase(),
-    });
+  const user = await User.findOne({
+    email: email.toLowerCase().trim(),
+  });
 
-    if (!user) {
-        throw new Apierror(400, "User does not exist");
-    }
+  if (!user) {
+    throw new Apierror(401, "Invalid email or password");
+  }
 
-    // const isPasswordValid = await user.isPasswordCorrect(password);
+  const isPasswordValid = await user.isPasswordCorrect(password);
 
-    // if (!isPasswordValid) {
-    //     throw new Apierror(401, "Invalid password");
-    // }
+  if (!isPasswordValid) {
+    throw new Apierror(401, "Invalid email or password");
+  }
 
-    const { accessToken, refreshToken } =
-        await generateAccessAndRefreshToken(user._id.toString());
+  const { accessToken, refreshToken } =
+    await generateAccessAndRefreshToken(user._id.toString());
 
-    const loggedInUser = await User
-        .findById(user._id)
-        .select("-refreshToken");
+  const loggedInUser = await User.findById(user._id)
+    .select("-password");
 
-    return res
-        .status(200)
-        .json(
-            new Apiresponse(
-                200,
-                {
-                    user: loggedInUser,
-                    accessToken,
-                    refreshToken
-                },
+  if (!loggedInUser) {
+    throw new Apierror(404, "User not found");
+  }
 
-                "User logged in successfully"
-            )
-        );
+  return res.status(200).json(
+    new Apiresponse(
+      200,
+      {
+        user: loggedInUser,
+        accessToken,
+        refreshToken,
+      },
+      "User logged in successfully"
+    )
+  );
 });
 
 
 const Logout = asynchandler(async (req, res) => {
-    await User.findByIdAndUpdate(
-        req.user?._id,
+    const sessionId = req.user?.sessionId;
+
+    if (!sessionId || !mongoose.Types.ObjectId.isValid(sessionId)) {
+        throw new Apierror(401, "Invalid session");
+    }
+
+    const session = await Session.findOneAndUpdate(
         {
-            $unset: {
-                refreshToken: 1
-            }
+            _id: sessionId,
+            userId: req.user?._id,
+            revokedAt: null,
         },
         {
-            returnDocument: "after"
+            $set: {
+                revokedAt: new Date(),
+            },
+        },
+        {
+            returnDocument: "after",
         }
-    )
-    return res.status(200)
-        .json(
-            new Apiresponse(200, {}, "user logged out")
+    );
 
-        )
+    if (!session) {
+        throw new Apierror(401, "Session not found or already revoked");
+    }
 
+    return res.status(200).json(
+        new Apiresponse(200, {}, "Logged out successfully")
+    );
 });
 
 const getCurrentUser = asynchandler(async (req, res) => {

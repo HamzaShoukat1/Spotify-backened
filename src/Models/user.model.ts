@@ -9,7 +9,6 @@ export interface IUser extends Document {
   onboarding: boolean;
   favoriteArtists: mongoose.Types.ObjectId[];
   role: "user" | "artist" | "admin";
-  refreshToken?: string;
   stripeCustomerId?: string | null | undefined;
   planTier: "free" | "premium";
   isPasswordCorrect(password: string): Promise<boolean>;
@@ -53,10 +52,10 @@ const userSchema = new Schema<IUser>(
       enum: ["user", "artist", "admin"],
       default: "user",
     },
-    refreshToken: {
-      type: String,
-      default: null,
-    },
+    // refreshToken: {
+    //   type: String,
+    //   default: null,
+    // },
     stripeCustomerId: {
       type: String,
       default: null,
