@@ -33,27 +33,21 @@ app.use(
   })
 );
 
-// Raw body parser for Stripe webhook endpoints must precede general express.json()
-app.use(
-  ["/api/v1/subscription/webhook", "/subscription/webhook"],
-  express.raw({ type: "application/json" })
-);
+
+app.use("/subscription/webhook", express.raw({ type: "application/json" }));
 
 app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 
-// Static Files
 app.use("/assets", express.static(path.join(process.cwd(), "Public", "assets")));
 
-// API Routes
 app.use("/auth", AuthRoutes);
 app.use("/artist", ArtistRoute);
 app.use("/music", MusicRoute);
 app.use("/search", SearchRoute);
 app.use("/stream", AnalyticsRoute);
 app.use("/song", LikesRoute);
-// app.use("/api/v1/subscription", SubscriptionRoute);
-app.use("/subscription", SubscriptionRoute);
+app.use("/subscription", SubscriptionRoute); 
 
 app.use(errorHandler);
 

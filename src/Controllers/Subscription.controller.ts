@@ -10,24 +10,29 @@ import { Apierror } from "../utils/Apierror.js";
 import { Apiresponse } from "../utils/Apiresponse.js";
 
 
+function safeDate(unixTs: number | null | undefined): Date | null {
+  if (typeof unixTs !== "number" || !Number.isFinite(unixTs) || unixTs <= 0) {
+    return null;
+  }
+  return new Date(unixTs * 1000);
+}
+
+
 async function getValidPriceFromStripe(requestedPriceId?: string): Promise<string> {
-  if (requestedPriceId && requestedPriceId.startsWith("price_")) {
+  if (requestedPriceId?.startsWith("price_")) {
     try {
       const retrieved = await stripe.prices.retrieve(requestedPriceId);
       if (retrieved.active) return retrieved.id;
     } catch {
-      console.log("gotOr")
     }
   }
 
   const envPriceId = process.env.STRIPE_PREMIUM_PRICE_ID;
-  if (envPriceId && envPriceId.startsWith("price_")) {
+  if (envPriceId?.startsWith("price_")) {
     try {
       const retrieved = await stripe.prices.retrieve(envPriceId);
       if (retrieved.active) return retrieved.id;
     } catch {
-      console.log("gotOr")
-
     }
   }
 
@@ -42,21 +47,18 @@ export const createSubscriptionSetup = asynchandler(async (req: Request, res: Re
   }
 
   const user = await User.findById(userId);
-  if (!user) {
-    throw new Apierror(404, "User account not found");
-  }
+  if (!user) throw new Apierror(404, "User account not found");
 
   const existingActiveSub = await Subscription.findOne({
     user: user._id,
     status: { $in: ["active", "trialing"] },
-    currentPeriodEnd: { $gt: new Date() }
+    currentPeriodEnd: { $gt: new Date() },
   });
-
   if (existingActiveSub) {
     throw new Apierror(400, "You already have an active Premium subscription");
   }
 
-  const { priceId } = req.body as { priceId?: string };
+  const { priceId } = (req.body as { priceId?: string } | undefined) ?? {};
   const targetPriceId = await getValidPriceFromStripe(priceId);
 
   let customerId = user.stripeCustomerId;
@@ -66,7 +68,7 @@ export const createSubscriptionSetup = asynchandler(async (req: Request, res: Re
       name: user.name,
       metadata: { userId: user._id.toString() },
     });
-    customerId = newCustomer.id
+    customerId = newCustomer.id;
     user.stripeCustomerId = customerId;
     await user.save();
   }
@@ -86,17 +88,14 @@ export const createSubscriptionSetup = asynchandler(async (req: Request, res: Re
   if (!paymentIntent?.client_secret) {
     throw new Apierror(500, "Failed to create PaymentIntent for subscription checkout");
   }
-  const apiVersion = '2024-12-18.acacia'
+
   const ephemeralKey = await stripe.ephemeralKeys.create(
-    {
-      customer: customerId,
-    },
-    {
-      apiVersion: apiVersion
-    }
+    { customer: customerId },
+    { apiVersion: "2024-12-18.acacia" as unknown as Stripe.LatestApiVersion }
   );
 
-
+  const periodStart = safeDate(subscription.current_period_start) ?? new Date();
+  const periodEnd = safeDate(subscription.current_period_end) ?? new Date();
 
   await Subscription.findOneAndUpdate(
     { stripeSubscriptionId: subscription.id },
@@ -106,8 +105,8 @@ export const createSubscriptionSetup = asynchandler(async (req: Request, res: Re
       stripeCustomerId: customerId,
       stripePriceId: targetPriceId,
       status: subscription.status,
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      currentPeriodStart: periodStart,
+      currentPeriodEnd: periodEnd,
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
     },
     { upsert: true }
@@ -120,13 +119,12 @@ export const createSubscriptionSetup = asynchandler(async (req: Request, res: Re
         subscriptionId: subscription.id,
         clientSecret: paymentIntent.client_secret,
         ephemeralKeySecret: ephemeralKey.secret,
-        customerId: customerId,
+        customerId,
       },
-      "Subscription  generated successfully"
+      "Subscription setup generated successfully"
     )
   );
 });
-
 
 export const cancelSubscription = asynchandler(async (req: Request, res: Response) => {
   const userId = req.user?._id;
@@ -134,56 +132,63 @@ export const cancelSubscription = asynchandler(async (req: Request, res: Respons
     throw new Apierror(401, "Unauthorized");
   }
 
-  const { subscriptionId, cancelImmediately = false } = req.body as {
-    subscriptionId?: string;
+  const { cancelImmediately = false } = (req.body as {
     cancelImmediately?: boolean;
-  };
+  } | undefined) ?? {};
 
-  let targetSubscriptionId = subscriptionId;
+  let targetSubscriptionId
   if (!targetSubscriptionId) {
     const activeSub = await Subscription.findOne({
       user: userId,
       status: { $in: ["active", "trialing"] },
     }).sort({ createdAt: -1 });
 
-    if (!activeSub) {
-      throw new Apierror(404, "No active subscription found to cancel");
-    }
+    if (!activeSub) throw new Apierror(404, "No active subscription found to cancel");
     targetSubscriptionId = activeSub.stripeSubscriptionId;
   }
 
   if (cancelImmediately) {
-    const canceledSubscription = await stripe.subscriptions.cancel(targetSubscriptionId);
-
+    const canceled = await stripe.subscriptions.cancel(targetSubscriptionId);
     await Subscription.findOneAndUpdate(
       { stripeSubscriptionId: targetSubscriptionId },
-      { status: canceledSubscription.status, cancelAtPeriodEnd: false, canceledAt: new Date() }
+      { status: canceled.status, cancelAtPeriodEnd: false, canceledAt: new Date() }
     );
     await User.findByIdAndUpdate(userId, { planTier: "free" });
 
     return res.status(200).json(
-      new Apiresponse(200, { subscriptionId: targetSubscriptionId, status: canceledSubscription.status, cancelImmediately: true }, "Subscription cancelled succesfully")
+      new Apiresponse(
+        200,
+        { subscriptionId: targetSubscriptionId, status: canceled.status, cancelImmediately: true },
+        "Subscription cancelled immediately"
+      )
     );
   }
 
-  const updatedSubscription = await stripe.subscriptions.update(targetSubscriptionId, {
+  const updated = await stripe.subscriptions.update(targetSubscriptionId, {
     cancel_at_period_end: true,
   });
 
+  const periodEnd = safeDate(updated.current_period_end) ?? new Date();
+
   await Subscription.findOneAndUpdate(
     { stripeSubscriptionId: targetSubscriptionId },
-    { cancelAtPeriodEnd: true, currentPeriodEnd: new Date(updatedSubscription.current_period_end * 1000) }
+    { cancelAtPeriodEnd: true, currentPeriodEnd: periodEnd }
   );
 
   return res.status(200).json(
-    new Apiresponse(200, {
-      subscriptionId: targetSubscriptionId,
-      status: updatedSubscription.status,
-      cancelAtPeriodEnd: true,
-      currentPeriodEnd: new Date(updatedSubscription.current_period_end * 1000),
-    }, "Subscription scheduled for cancellation at end of billing cycle")
+    new Apiresponse(
+      200,
+      {
+        subscriptionId: targetSubscriptionId,
+        status: updated.status,
+        cancelAtPeriodEnd: true,
+        currentPeriodEnd: periodEnd,
+      },
+      "Subscription scheduled for cancellation at end of billing cycle"
+    )
   );
 });
+
 
 export const getMySubscription = asynchandler(async (req: Request, res: Response) => {
   const userId = req.user?._id;
@@ -192,23 +197,31 @@ export const getMySubscription = asynchandler(async (req: Request, res: Response
   const user = await User.findById(userId).select("planTier").lean();
   if (!user) throw new Apierror(404, "User not found");
 
-  const subscription = await Subscription.findOne({ user: userId }).sort({ createdAt: -1 }).lean();
+  const subscription = await Subscription.findOne({ user: userId })
+    .sort({ createdAt: -1 })
+    .lean();
 
   return res.status(200).json(
-    new Apiresponse(200, {
-      planTier: user.planTier || "free",
-      isPremium: user.planTier === "premium",
-      subscription: subscription ? {
-        id: subscription._id,
-        stripeSubscriptionId: subscription.stripeSubscriptionId,
-        stripePriceId: subscription.stripePriceId,
-        status: subscription.status,
-        currentPeriodStart: subscription.currentPeriodStart,
-        currentPeriodEnd: subscription.currentPeriodEnd,
-        cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
-        canceledAt: subscription.canceledAt,
-      } : null,
-    }, "Subscription metadata fetched successfully")
+    new Apiresponse(
+      200,
+      {
+        planTier: user.planTier || "free",
+        isPremium: user.planTier === "premium",
+        subscription: subscription
+          ? {
+            id: subscription._id,
+            stripeSubscriptionId: subscription.stripeSubscriptionId,
+            stripePriceId: subscription.stripePriceId,
+            status: subscription.status,
+            currentPeriodStart: subscription.currentPeriodStart,
+            currentPeriodEnd: subscription.currentPeriodEnd,
+            cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+            canceledAt: subscription.canceledAt,
+          }
+          : null,
+      },
+      "Subscription metadata fetched successfully"
+    )
   );
 });
 
@@ -224,6 +237,7 @@ const findUserByStripeData = async (metadataUserId?: string, customerId?: string
   return null;
 };
 
+
 export const handleStripeWebhook = async (req: Request, res: Response): Promise<void> => {
   const signature = req.headers["stripe-signature"];
   if (!signature || typeof signature !== "string") {
@@ -236,7 +250,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
     event = stripe.webhooks.constructEvent(req.body, signature, STRIPE_WEBHOOK_SECRET);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Webhook verification failed";
-    console.error(`[Stripe Webhook Error] ${message}`);
+    console.error(`[Stripe Webhook Signature Error] ${message}`);
     res.status(400).send(`Webhook Error: ${message}`);
     return;
   }
@@ -245,11 +259,17 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
     switch (event.type) {
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
-        const subId = typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription?.id;
+        const subId =
+          typeof invoice.subscription === "string"
+            ? invoice.subscription
+            : invoice.subscription?.id;
         if (!subId) break;
 
         const subscription = await stripe.subscriptions.retrieve(subId);
-        const custId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
+        const custId =
+          typeof subscription.customer === "string"
+            ? subscription.customer
+            : subscription.customer.id;
 
         const user = await findUserByStripeData(subscription.metadata?.userId, custId);
         if (!user) break;
@@ -266,15 +286,19 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
             stripeCustomerId: custId,
             stripePriceId: subscription.items.data[0]?.price.id,
             status: subscription.status,
-            currentPeriodStart: new Date(subscription.current_period_start * 1000),
-            currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+            currentPeriodStart: safeDate(subscription.current_period_start) ?? new Date(),
+            currentPeriodEnd: safeDate(subscription.current_period_end) ?? new Date(),
             cancelAtPeriodEnd: subscription.cancel_at_period_end,
             canceledAt: null,
           },
           { upsert: true }
         );
 
-        const piId = typeof invoice.payment_intent === "string" ? invoice.payment_intent : invoice.payment_intent?.id || null;
+        const piId =
+          typeof invoice.payment_intent === "string"
+            ? invoice.payment_intent
+            : invoice.payment_intent?.id ?? null;
+
         await Invoice.findOneAndUpdate(
           { stripeInvoiceId: invoice.id },
           {
@@ -284,10 +308,10 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
             stripePaymentIntentId: piId,
             amountPaid: invoice.amount_paid,
             currency: invoice.currency,
-            status: invoice.status || "paid",
-            hostedInvoiceUrl: invoice.hosted_invoice_url || null,
-            invoicePdf: invoice.invoice_pdf || null,
-            paidAt: invoice.status_transitions?.paid_at ? new Date(invoice.status_transitions.paid_at * 1000) : new Date(),
+            status: invoice.status ?? "paid",
+            hostedInvoiceUrl: invoice.hosted_invoice_url ?? null,
+            invoicePdf: invoice.invoice_pdf ?? null,
+            paidAt: safeDate(invoice.status_transitions?.paid_at ?? undefined) ?? new Date(),
           },
           { upsert: true }
         );
@@ -296,7 +320,10 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
 
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
-        const custId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
+        const custId =
+          typeof subscription.customer === "string"
+            ? subscription.customer
+            : subscription.customer.id;
 
         const user = await findUserByStripeData(subscription.metadata?.userId, custId);
         if (!user) break;
@@ -313,10 +340,10 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
             stripeCustomerId: custId,
             stripePriceId: subscription.items.data[0]?.price.id,
             status: subscription.status,
-            currentPeriodStart: new Date(subscription.current_period_start * 1000),
-            currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+            currentPeriodStart: safeDate(subscription.current_period_start) ?? new Date(),
+            currentPeriodEnd: safeDate(subscription.current_period_end) ?? new Date(),
             cancelAtPeriodEnd: subscription.cancel_at_period_end,
-            canceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
+            canceledAt: safeDate(subscription.canceled_at ?? undefined),
           },
           { upsert: true }
         );
@@ -325,7 +352,10 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
-        const custId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
+        const custId =
+          typeof subscription.customer === "string"
+            ? subscription.customer
+            : subscription.customer.id;
 
         const user = await findUserByStripeData(subscription.metadata?.userId, custId);
         if (!user) break;
@@ -342,16 +372,15 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
 
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
-        console.warn(`[Stripe Invoice Payment Failed] Invoice ID: ${invoice.id}`);
+        console.warn(`[Stripe] Invoice payment failed — Invoice ID: ${invoice.id}`);
         break;
       }
     }
 
     res.status(200).json({ received: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Error handling Stripe event";
+    const message = error instanceof Error ? error.message : "Unknown webhook processing error";
     console.error(`[Webhook Processing Error] ${message}`);
     res.status(500).json({ error: "Internal webhook processing error" });
   }
 };
-
