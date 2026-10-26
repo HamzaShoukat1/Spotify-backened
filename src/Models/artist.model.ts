@@ -37,4 +37,4 @@ const ArtistSchema = new Schema(
 
 
 
-export const Artist = mongoose.model<any>("Artist", ArtistSchema);
+export const  Artist = mongoose.model<any>("Artist", ArtistSchema);

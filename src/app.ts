@@ -47,7 +47,7 @@ app.use("/music", MusicRoute);
 app.use("/search", SearchRoute);
 app.use("/stream", AnalyticsRoute);
 app.use("/song", LikesRoute);
-app.use("/subscription", SubscriptionRoute); 
+app.use("/subscription", SubscriptionRoute);
 
 app.use(errorHandler);
 

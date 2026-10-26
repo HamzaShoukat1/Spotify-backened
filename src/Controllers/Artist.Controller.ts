@@ -186,6 +186,21 @@ const getPublicArtists = asynchandler(async (req, res) => {
 });
 
 
+const artistuploadmusicnumber = asynchandler(async (req, res) => {
+    const artistId = req.user?._id
+
+    if (!artistId) {
+      
+        throw new Apierror(400, "artist id is required")
+
+    }
+
+    const totalUploadedMusic = await Music.countDocuments({ uploadedBy: artistId });
+
+
+    return res.status(200).json(new Apiresponse(200, totalUploadedMusic, 'Total uploaded music retrieved successfully'))
+});
+
 
 
 
@@ -199,4 +214,5 @@ export {
     UpdateArtistProfile,
     getPublicArtistDetails,
     getPublicArtists,
+    artistuploadmusicnumber
 }

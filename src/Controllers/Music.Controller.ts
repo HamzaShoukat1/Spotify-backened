@@ -142,7 +142,7 @@ const getRecentlyPlayedSongs = asynchandler(async (req, res) => {
         },
         {
             $lookup: {
-                from:"musics",
+                from: "musics",
                 localField: "_id",
                 foreignField: "_id",
                 as: "songDetails",
@@ -167,6 +167,8 @@ const getRecentlyPlayedSongs = asynchandler(async (req, res) => {
             new Apiresponse(200, recentSongs, "Recent songs fetched successfully"),
         );
 });
+
+
 
 export {
     getMusicDataForHome,

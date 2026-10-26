@@ -22,7 +22,7 @@ const sessionSchema = new Schema<ISession>(
     refreshTokenHash: {
       type: String,
       required: true,
-      unique: true,
+      // unique: true,
     },
 
 
