@@ -3,6 +3,9 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 
+// Import your webhook controller directly
+import { handleStripeWebhook } from "./Controllers/Subscription.controller.js";
+
 import AuthRoutes from "./Routes/AuthRoute.js";
 import MusicRoute from "./Routes/MusicRoute.js";
 import ArtistRoute from "./Routes/ArtistRoute.js";
@@ -11,6 +14,7 @@ import AnalyticsRoute from "./Routes/Analytics.Route.js";
 import LikesRoute from "./Routes/Likes.Route.js";
 import SubscriptionRoute from "./Routes/Subscription.Route.js";
 import { errorHandler } from "./Middlewares/error.middleware.js";
+import PlaylistRoute from "./Routes/Playlist.Route.js";
 
 dotenv.config();
 
@@ -34,20 +38,33 @@ app.use(
 );
 
 
-app.use("/subscription/webhook", express.raw({ type: "application/json" }));
+app.post(
+  "/subscription/webhook",
+  express.raw({ type: "application/json" }),
+  handleStripeWebhook
+);
+// app.js
+// app.post(
+//   "/subscription/webhook",
+//   express.raw({ type: "*/*" }), // <-- Change this to catch EVERYTHING as a raw Buffer
+//   handleStripeWebhook
+// );
 
+// 2. GLOBAL BODY PARSERS (For all other routes)
 app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 
 app.use("/assets", express.static(path.join(process.cwd(), "Public", "assets")));
 
+// 3. MOUNT REST OF ROUTERS
 app.use("/auth", AuthRoutes);
 app.use("/artist", ArtistRoute);
 app.use("/music", MusicRoute);
 app.use("/search", SearchRoute);
 app.use("/stream", AnalyticsRoute);
 app.use("/song", LikesRoute);
-app.use("/subscription", SubscriptionRoute);
+app.use("/subscription", SubscriptionRoute); 
+app.use("/api", PlaylistRoute);
 
 app.use(errorHandler);
 

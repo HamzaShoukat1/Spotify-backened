@@ -271,8 +271,16 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
             ? subscription.customer
             : subscription.customer.id;
 
-        const user = await findUserByStripeData(subscription.metadata?.userId, custId);
-        if (!user) break;
+        let user = await findUserByStripeData(subscription.metadata?.userId, custId);
+        
+        if (!user) {
+          user = await User.findOne({ stripeCustomerId: custId });
+        }
+
+        if (!user) {
+          console.warn(`[Stripe Webhook] invoice.payment_succeeded dropped: No local user found for customer ID ${custId}`);
+          break;
+        }
 
         user.planTier = "premium";
         if (!user.stripeCustomerId) user.stripeCustomerId = custId;
@@ -325,8 +333,15 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
             ? subscription.customer
             : subscription.customer.id;
 
-        const user = await findUserByStripeData(subscription.metadata?.userId, custId);
-        if (!user) break;
+        let user = await findUserByStripeData(subscription.metadata?.userId, custId);
+        if (!user) {
+          user = await User.findOne({ stripeCustomerId: custId });
+        }
+        
+        if (!user) {
+          console.warn(`[Stripe Webhook] customer.subscription.updated dropped: No local user found for customer ID ${custId}`);
+          break;
+        }
 
         const isActive = ["active", "trialing"].includes(subscription.status);
         user.planTier = isActive ? "premium" : "free";
@@ -357,8 +372,15 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
             ? subscription.customer
             : subscription.customer.id;
 
-        const user = await findUserByStripeData(subscription.metadata?.userId, custId);
-        if (!user) break;
+        let user = await findUserByStripeData(subscription.metadata?.userId, custId);
+        if (!user) {
+          user = await User.findOne({ stripeCustomerId: custId });
+        }
+
+        if (!user) {
+          console.warn(`[Stripe Webhook] customer.subscription.deleted dropped: No local user found for customer ID ${custId}`);
+          break;
+        }
 
         user.planTier = "free";
         await user.save();
