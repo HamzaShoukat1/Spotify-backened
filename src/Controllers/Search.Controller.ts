@@ -41,8 +41,8 @@ const search = asynchandler(async (req, res) => {
             .limit(10)
             .lean(),
 
-        Music.find({ musicTitle: searchRegex })
-            .select("_id musicTitle coverPhoto")
+        Music.find({ $or: [{ musicTitle: searchRegex }, { primaryArtistName: searchRegex }] })
+            .select("_id musicTitle primaryArtistName coverPhoto")
             .limit(20)
             .lean(),
     ]);

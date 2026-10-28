@@ -245,6 +245,18 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
     return;
   }
 
+  if (!STRIPE_WEBHOOK_SECRET) {
+    console.error("[Stripe Webhook Configuration Error] STRIPE_WEBHOOK_SECRET is not configured");
+    res.status(500).json({ error: "Stripe webhook is not configured" });
+    return;
+  }
+
+  if (!Buffer.isBuffer(req.body)) {
+    console.error("[Stripe Webhook Request Error] Expected the unparsed request body as a Buffer");
+    res.status(400).json({ error: "Webhook request body must be raw JSON" });
+    return;
+  }
+
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(req.body, signature, STRIPE_WEBHOOK_SECRET);
@@ -257,6 +269,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
 
   try {
     switch (event.type) {
+      case "invoice.paid":
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
         const subId =

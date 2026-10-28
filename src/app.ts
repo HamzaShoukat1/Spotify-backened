@@ -40,15 +40,10 @@ app.use(
 
 app.post(
   "/subscription/webhook",
-  express.raw({ type: "application/json" }),
+
+  express.raw({ type: "application/json", limit: "1mb" }),
   handleStripeWebhook
 );
-// app.js
-// app.post(
-//   "/subscription/webhook",
-//   express.raw({ type: "*/*" }), // <-- Change this to catch EVERYTHING as a raw Buffer
-//   handleStripeWebhook
-// );
 
 // 2. GLOBAL BODY PARSERS (For all other routes)
 app.use(express.json({ limit: "16kb" }));
