@@ -272,11 +272,23 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
       case "invoice.paid":
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
-        const subId =
-          typeof invoice.subscription === "string"
-            ? invoice.subscription
-            : invoice.subscription?.id;
-        if (!subId) break;
+      
+        const invoiceWithParent = invoice as Stripe.Invoice & {
+          parent?: {
+            subscription_details?: {
+              subscription?: string | Stripe.Subscription;
+            } | null;
+          } | null;
+        };
+        const invoiceSubscription = invoice.subscription ??
+          invoiceWithParent.parent?.subscription_details?.subscription;
+        const subId = typeof invoiceSubscription === "string"
+          ? invoiceSubscription
+          : invoiceSubscription?.id;
+        if (!subId) {
+          console.warn(`[Stripe Webhook] ${event.type} skipped: invoice ${invoice.id} has no subscription reference`);
+          break;
+        }
 
         const subscription = await stripe.subscriptions.retrieve(subId);
         const custId =
@@ -315,10 +327,35 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
           { upsert: true }
         );
 
+        const invoiceWithPayments = invoice as Stripe.Invoice & {
+          payments?: {
+            data?: Array<{
+              payment?: {
+                type?: string;
+                payment_intent?: string | Stripe.PaymentIntent | null;
+              } | null;
+            }>;
+          };
+        };
+        const directPaymentIntent = invoice.payment_intent;
+
+        const invoicePaymentIntent =
+          typeof directPaymentIntent === "string"
+            ? directPaymentIntent
+            : directPaymentIntent?.id ??
+              invoiceWithPayments.payments?.data?.find(
+                (payment) => payment.payment?.type === "payment_intent"
+              )?.payment?.payment_intent;
         const piId =
-          typeof invoice.payment_intent === "string"
-            ? invoice.payment_intent
-            : invoice.payment_intent?.id ?? null;
+          typeof invoicePaymentIntent === "string"
+            ? invoicePaymentIntent
+            : invoicePaymentIntent?.id ?? null;
+
+        if (!piId) {
+          console.warn(
+            `[Stripe Webhook] Paid invoice ${invoice.id} has no PaymentIntent reference; saving invoice with null stripePaymentIntentId`
+          );
+        }
 
         await Invoice.findOneAndUpdate(
           { stripeInvoiceId: invoice.id },

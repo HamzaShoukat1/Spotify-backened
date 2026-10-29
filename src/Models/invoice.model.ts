@@ -9,6 +9,7 @@ export interface IInvoice extends Document {
   currency: string;
   status: string;
   hostedInvoiceUrl?: string | null;
+  invoicePdf?: string | null;
   paidAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -48,8 +49,18 @@ const invoiceSchema = new Schema<IInvoice>(
       required: true,
       default: "usd",
     },
+    status: {
+      type: String,
+      required: true,
+      default: "paid",
+      index: true,
+    },
 
     hostedInvoiceUrl: {
+      type: String,
+      default: null,
+    },
+    invoicePdf: {
       type: String,
       default: null,
     },
