@@ -1,0 +1,9 @@
+export declare const createPlaylist: (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => void;
+export declare const getUserPlaylists: (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => void;
+export declare const getPlaylist: (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => void;
+export declare const renamePlaylist: (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => void;
+export declare const deletePlaylist: (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => void;
+export declare const addSongToPlaylist: (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => void;
+export declare const removeSongFromPlaylist: (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => void;
+export declare const getAvailableSongs: (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => void;
+//# sourceMappingURL=Playlist.Controller.d.ts.map
