@@ -7,13 +7,76 @@ import { Artist } from "../Models/artist.model.js";
 import { Music } from "../Models/music.model.js";
 import { DailyListeningUsage } from "../Models/DailyListeningUsage.model.js";
 import { ListeningSession } from "../Models/ListeningSession.model.js";
+import { Subscription } from "../Models/subscription.modal.js";
+import { User } from "../Models/user.model.js";
+import { stripe } from "../config/stripe.js";
+import { RecentSongsPlaying } from "../Models/RecentSongPlaying.model.js";
 
 const FREE_DAILY_LISTEN_LIMIT = 3;
 const MINIMUM_LISTEN_DURATION_MS = 2 * 60 * 1000;
 
 function getUtcUsageDate(date = new Date()): string {
     return date.toISOString().slice(0, 10);
-}
+};
+
+async function hasPremiumAccess(userId: mongoose.Types.ObjectId, planTier?: string) {
+    if (planTier === "premium") return true;
+
+    const activeSubscription = await Subscription.exists({
+        user: userId,
+        status: { $in: ["active", "trialing"] },
+        currentPeriodEnd: { $gt: new Date() },
+    });
+    if (activeSubscription) {
+        await User.updateOne(
+            { _id: userId, planTier: { $ne: "premium" } },
+            { $set: { planTier: "premium" } },
+        );
+        return true;
+    }
+
+    const pendingSubscription = await Subscription.findOne({
+        user: userId,
+        status: "incomplete",
+    }).sort({ createdAt: -1 });
+    if (!pendingSubscription) return false;
+
+    let stripeSubscription;
+    try {
+        stripeSubscription = await stripe.subscriptions.retrieve(
+            pendingSubscription.stripeSubscriptionId,
+        );
+    } catch (error) {
+        console.error("Failed to verify pending Stripe subscription:", error);
+        throw new Apierror(503, "Unable to verify your subscription right now. Please try again.");
+    }
+
+    const stripeCustomerId = typeof stripeSubscription.customer === "string"
+        ? stripeSubscription.customer
+        : stripeSubscription.customer.id;
+    const periodEnd = new Date(stripeSubscription.current_period_end * 1000);
+    const stripeIsActive =
+        stripeCustomerId === pendingSubscription.stripeCustomerId &&
+        ["active", "trialing"].includes(stripeSubscription.status) &&
+        periodEnd > new Date();
+
+    if (!stripeIsActive) return false;
+
+    await Promise.all([
+        User.findByIdAndUpdate(userId, { planTier: "premium" }),
+        Subscription.findByIdAndUpdate(pendingSubscription._id, {
+            status: stripeSubscription.status,
+            currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000),
+            currentPeriodEnd: periodEnd,
+            cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+            canceledAt: stripeSubscription.canceled_at
+                ? new Date(stripeSubscription.canceled_at * 1000)
+                : null,
+        }),
+    ]);
+
+    return true;
+};
 
 async function reserveFreeListen(userId: mongoose.Types.ObjectId, usageDate: string) {
     const updatedUsage = await DailyListeningUsage.findOneAndUpdate(
@@ -68,15 +131,7 @@ export const startListening = asynchandler(async (req, res) => {
     if (!musicExists) throw new Apierror(404, "Music not found");
 
     const now = new Date();
-    const isPremiumUser = req.user?.planTier === "premium"
-        // req.user?.planTier === "premium" ||
-        // Boolean(
-        //     await Subscription.exists({
-        //         user: userId,
-        //         status: { $in: ["active", "trialing"] },
-        //         currentPeriodEnd: { $gt: now },
-        //     })
-        // );
+    const isPremiumUser = await hasPremiumAccess(userId, req.user?.planTier);
 
     if (isPremiumUser) {
         return res.status(200).json(
@@ -134,7 +189,7 @@ export const completeListening = asynchandler(async (req, res) => {
     if (!userId || !mongoose.isValidObjectId(userId))
         throw new Apierror(401, "Unauthorized");
 
-    if (req.user?.planTier === "premium") {
+    if (await hasPremiumAccess(userId, req.user?.planTier)) {
         return res
             .status(200)
             .json(
@@ -268,10 +323,10 @@ const trackStream = asynchandler(async (req, res) => {
         listenerId,
     });
 
-    // await RecentSongsPlaying.create({
-    //     user: listenerId,
-    //     music: music._id,
-    // });
+    await RecentSongsPlaying.create({
+        user: listenerId,
+        music: music._id,
+    });
 
     return res
         .status(201)

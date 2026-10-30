@@ -2,7 +2,8 @@ import { Router } from "express";
 import { 
   getMySubscription, 
   createSubscriptionSetup, 
-  cancelSubscription 
+  cancelSubscription,
+  confirmSubscriptionPayment,
 } from "../Controllers/Subscription.controller.js";
 import { verifyjwt } from "../Middlewares/auth.middleware.js";
 
@@ -11,6 +12,7 @@ const router = Router();
 
 router.get("/me", verifyjwt, getMySubscription);
 router.post("/create-subscription", verifyjwt, createSubscriptionSetup);
+router.post("/confirm", verifyjwt, confirmSubscriptionPayment);
 router.post("/cancel", verifyjwt, cancelSubscription);
 
 export default router;

@@ -197,6 +197,11 @@ export const getMySubscription = asynchandler(async (req: Request, res: Response
   const user = await User.findById(userId).select("planTier").lean();
   if (!user) throw new Apierror(404, "User not found");
 
+  const isPremium = user.planTier === "premium" || Boolean(await Subscription.exists({
+    user: userId,
+    status: { $in: ["active", "trialing"] },
+    currentPeriodEnd: { $gt: new Date() },
+  }));
   const subscription = await Subscription.findOne({ user: userId })
     .sort({ createdAt: -1 })
     .lean();
@@ -205,8 +210,8 @@ export const getMySubscription = asynchandler(async (req: Request, res: Response
     new Apiresponse(
       200,
       {
-        planTier: user.planTier || "free",
-        isPremium: user.planTier === "premium",
+        planTier: isPremium ? "premium" : "free",
+        isPremium,
         subscription: subscription
           ? {
             id: subscription._id,
@@ -222,6 +227,75 @@ export const getMySubscription = asynchandler(async (req: Request, res: Response
       },
       "Subscription metadata fetched successfully"
     )
+  );
+});
+
+export const confirmSubscriptionPayment = asynchandler(async (req: Request, res: Response) => {
+  const userId = req.user?._id;
+  const { subscriptionId } = (req.body as { subscriptionId?: string } | undefined) ?? {};
+
+  if (!userId || !mongoose.isValidObjectId(userId)) {
+    throw new Apierror(401, "Unauthorized");
+  }
+  if (!subscriptionId || !subscriptionId.startsWith("sub_")) {
+    throw new Apierror(400, "A valid subscriptionId is required");
+  }
+
+  // Only allow the authenticated owner to confirm a subscription created for
+  // their account; never trust a client supplied Stripe status.
+  const localSubscription = await Subscription.findOne({
+    user: userId,
+    stripeSubscriptionId: subscriptionId,
+  });
+  if (!localSubscription) {
+    throw new Apierror(404, "Subscription not found for this account");
+  }
+
+  const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId);
+  const customerId = typeof stripeSubscription.customer === "string"
+    ? stripeSubscription.customer
+    : stripeSubscription.customer.id;
+  if (customerId !== localSubscription.stripeCustomerId) {
+    throw new Apierror(403, "Subscription does not belong to this account");
+  }
+
+  const periodStart = safeDate(stripeSubscription.current_period_start);
+  const periodEnd = safeDate(stripeSubscription.current_period_end);
+  const isActive =
+    ["active", "trialing"].includes(stripeSubscription.status) &&
+    Boolean(periodEnd && periodEnd > new Date());
+
+  if (isActive) {
+    await Promise.all([
+      User.findByIdAndUpdate(userId, {
+        planTier: "premium",
+        stripeCustomerId: customerId,
+      }),
+      Subscription.findOneAndUpdate(
+        { _id: localSubscription._id, user: userId },
+        {
+          stripeCustomerId: customerId,
+          stripePriceId: stripeSubscription.items.data[0]?.price.id,
+          status: stripeSubscription.status,
+          ...(periodStart ? { currentPeriodStart: periodStart } : {}),
+          ...(periodEnd ? { currentPeriodEnd: periodEnd } : {}),
+          cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+          canceledAt: safeDate(stripeSubscription.canceled_at),
+        },
+      ),
+    ]);
+  }
+
+  return res.status(200).json(
+    new Apiresponse(
+      200,
+      {
+        isPremium: isActive,
+        status: stripeSubscription.status,
+        currentPeriodEnd: periodEnd,
+      },
+      isActive ? "Premium subscription confirmed" : "Subscription payment is still processing",
+    ),
   );
 });
 
