@@ -14,6 +14,7 @@ import LikesRoute from "./Routes/Likes.Route.js";
 import SubscriptionRoute from "./Routes/Subscription.Route.js";
 import { errorHandler } from "./Middlewares/error.middleware.js";
 import PlaylistRoute from "./Routes/Playlist.Route.js";
+import AlbumRoute from "./Routes/Album.Route.js";
 
 dotenv.config();
 
@@ -61,6 +62,7 @@ app.use("/stream", AnalyticsRoute);
 app.use("/song", LikesRoute);
 app.use("/subscription", SubscriptionRoute); 
 app.use("/api", PlaylistRoute);
+app.use("/api/albums", AlbumRoute);
 
 app.use(errorHandler);
 

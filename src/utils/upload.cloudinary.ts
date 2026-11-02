@@ -39,3 +39,8 @@ export const uploadCloudinary = (
         Readable.from(buffer).pipe(stream);
     });
 };
+
+export const destroyCloudinary = (publicId: string, resourceType: "image" | "video") =>
+    new Promise<void>((resolve) => {
+        cloudinary.uploader.destroy(publicId, { resource_type: resourceType }, () => resolve());
+    });

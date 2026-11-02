@@ -134,6 +134,12 @@ export const startListening = asynchandler(async (req, res) => {
     const isPremiumUser = await hasPremiumAccess(userId, req.user?.planTier);
 
     if (isPremiumUser) {
+        await RecentSongsPlaying.updateOne(
+            { user: userId, music: musicId },
+            { $set: { playedAt: now } },
+            { upsert: true },
+        );
+
         return res.status(200).json(
             new Apiresponse(
                 200,
@@ -167,6 +173,12 @@ export const startListening = asynchandler(async (req, res) => {
         status: "started",
     });
 
+    await RecentSongsPlaying.updateOne(
+        { user: userId, music: musicId },
+        { $set: { playedAt: now } },
+        { upsert: true },
+    );
+
     return res.status(200).json(
         new Apiresponse(
             200,
@@ -184,7 +196,10 @@ export const startListening = asynchandler(async (req, res) => {
 
 export const completeListening = asynchandler(async (req, res) => {
     const userId = req.user?._id;
-    const { sessionId, isCompleted } = req.body as { sessionId?: string; isCompleted?: boolean };
+    const { sessionId, listenedSeconds } = req.body as {
+        sessionId?: string;
+        listenedSeconds?: number;
+    };
 
     if (!userId || !mongoose.isValidObjectId(userId))
         throw new Apierror(401, "Unauthorized");
@@ -234,8 +249,31 @@ export const completeListening = asynchandler(async (req, res) => {
     }
 
     const elapsedMs = Date.now() - session.startedAt.getTime();
-    if (!isCompleted && elapsedMs < MINIMUM_LISTEN_DURATION_MS) {
-        throw new Apierror(400, "At least two minutes of listening is required");
+    const listenedMs = Number(listenedSeconds) * 1000;
+    if (
+        !Number.isFinite(listenedMs) ||
+        listenedMs < MINIMUM_LISTEN_DURATION_MS ||
+        elapsedMs < MINIMUM_LISTEN_DURATION_MS
+    ) {
+        const usage = await DailyListeningUsage.findOne({
+            user: userId,
+            usageDate: session.usageDate,
+        }).lean();
+        const count = usage?.listenCount ?? 0;
+
+        return res.status(200).json(
+            new Apiresponse(
+                200,
+                {
+                    counted: false,
+                    listenCount: count,
+                    remaining: Math.max(FREE_DAILY_LISTEN_LIMIT - count, 0),
+                    dailyLimit: FREE_DAILY_LISTEN_LIMIT,
+                    thresholdReached: false,
+                },
+                "Listen was too short to count",
+            ),
+        );
     }
 
     const claimedSession = await ListeningSession.findOneAndUpdate(
@@ -323,10 +361,11 @@ const trackStream = asynchandler(async (req, res) => {
         listenerId,
     });
 
-    await RecentSongsPlaying.create({
-        user: listenerId,
-        music: music._id,
-    });
+    await RecentSongsPlaying.updateOne(
+        { user: listenerId, music: music._id },
+        { $set: { playedAt: new Date() } },
+        { upsert: true },
+    );
 
     return res
         .status(201)

@@ -36,6 +36,13 @@ const musicSchema = new Schema(
             ref: 'User',
             required: true
         },
+        album: {
+            type: Schema.Types.ObjectId,
+            ref: 'Album',
+        },
+        trackNumber: {
+            type: Number,
+        },
 
 
     },

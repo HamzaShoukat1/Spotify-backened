@@ -6,6 +6,7 @@ export const upload = multer({
   storage,
   limits: {
     fileSize: 25 * 1024 * 1024, 
+    files: 21,
   },
   fileFilter: (_req, file, cb) => {
     const allowedTypes = [
@@ -21,12 +22,16 @@ export const upload = multer({
       "audio/wave",  
       "audio/ogg",   
       "audio/x-wav",
+      "audio/mp4",
+      "audio/x-m4a",
+      "audio/aac",
+      "audio/x-aac",
     ];
 
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Only JPG, JPEG, PNG, WEBP images and MP3, WAV, OGG audio files are allowed"));
+      cb(new Error("Only JPG, JPEG, PNG, WEBP images and MP3, WAV, OGG, M4A, or AAC audio files are allowed"));
     }
   },
 });

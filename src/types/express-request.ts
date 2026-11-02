@@ -6,5 +6,6 @@ export type AuthenticatedRequest = Request & {
     id?: string;
     sessionId?: string;
     planTier?: "free" | "premium";
+    role?: "user" | "artist" | "admin";
   };
 };
