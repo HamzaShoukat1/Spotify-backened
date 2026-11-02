@@ -37,7 +37,9 @@ app.use(
   })
 );
 
-
+app.get('/', (req, res) => {
+  res.send('Backend API running on Vercel!');
+});
 app.post(
   "/subscription/webhook",
 
