@@ -1,12 +1,6 @@
-// import { IUser } from './Models.Types'; 
-import { User } from "../Models/user.model.ts";
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: User;
-    }
+declare namespace Express {
+  export interface Request {
+    user?: import("../Models/user.model").User;
   }
 }
-
-export { };
