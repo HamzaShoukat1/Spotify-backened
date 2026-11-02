@@ -3,9 +3,6 @@
     "rootDir": "./src",
     "outDir": "./dist",
 
-    "typeRoots": ["./node_modules/@types", "./src/types"],
-
-
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "target": "esnext",
@@ -28,7 +25,7 @@
     "moduleDetection": "force",
     "skipLibCheck": true
   },
-  // 2. ADD explicit file inclusion rules
+  "files": ["src/types/express.d.ts"],
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "src/dist"]
 }
