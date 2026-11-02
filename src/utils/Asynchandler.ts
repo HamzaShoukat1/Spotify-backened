@@ -1,13 +1,16 @@
-import type {} from "../types/express.js";
-import  type{  Request,Response,NextFunction,RequestHandler } from "express"
+import type { NextFunction, Response } from "express";
+import type { AuthenticatedRequest } from "../types/express-request.js";
 
+type AsyncRequestHandler = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => unknown;
 
+const asynchandler = (reqhandler: AsyncRequestHandler) => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    Promise.resolve(reqhandler(req, res, next)).catch(next);
+  };
+};
 
-const asynchandler = (reqhandler:RequestHandler)=> {
-  return (req: Request,res:Response,next:NextFunction)=> {
-    Promise.resolve(reqhandler(req,res,next)).catch((error)=> next(error))
-
-  }
-
-}
-export {asynchandler} 
+export { asynchandler };

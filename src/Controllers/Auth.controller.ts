@@ -251,7 +251,7 @@ const changeUsername = asynchandler(async (req, res) => {
     updateFields.name = name;
 
     const user = await User.findByIdAndUpdate(
-        req.user._id,
+        req.user!._id,
         { $set: updateFields },
         { returnDocument: 'after', runValidators: true }
     ).select("-password -refreshToken -favoriteArtists -onboarding -email -gender -role");

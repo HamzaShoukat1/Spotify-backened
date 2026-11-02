@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import type { AuthenticatedRequest } from "../types/express-request.js";
 import Stripe from "stripe";
 import mongoose from "mongoose";
 import { stripe, STRIPE_WEBHOOK_SECRET } from "../config/stripe.js";
@@ -40,7 +41,7 @@ async function getValidPriceFromStripe(requestedPriceId?: string): Promise<strin
 }
 
 
-export const createSubscriptionSetup = asynchandler(async (req: Request, res: Response) => {
+export const createSubscriptionSetup = asynchandler(async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?._id;
   if (!userId || !mongoose.isValidObjectId(userId)) {
     throw new Apierror(401, "Unauthorized: valid user session required");
@@ -126,7 +127,7 @@ export const createSubscriptionSetup = asynchandler(async (req: Request, res: Re
   );
 });
 
-export const cancelSubscription = asynchandler(async (req: Request, res: Response) => {
+export const cancelSubscription = asynchandler(async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?._id;
   if (!userId || !mongoose.isValidObjectId(userId)) {
     throw new Apierror(401, "Unauthorized");
@@ -190,7 +191,7 @@ export const cancelSubscription = asynchandler(async (req: Request, res: Respons
 });
 
 
-export const getMySubscription = asynchandler(async (req: Request, res: Response) => {
+export const getMySubscription = asynchandler(async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?._id;
   if (!userId) throw new Apierror(401, "Unauthorized");
 
@@ -230,7 +231,7 @@ export const getMySubscription = asynchandler(async (req: Request, res: Response
   );
 });
 
-export const confirmSubscriptionPayment = asynchandler(async (req: Request, res: Response) => {
+export const confirmSubscriptionPayment = asynchandler(async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?._id;
   const { subscriptionId } = (req.body as { subscriptionId?: string } | undefined) ?? {};
 

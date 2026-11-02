@@ -1,4 +1,5 @@
-import type { Request, Response } from "express";
+import type { Response } from "express";
+import type { AuthenticatedRequest } from "../types/express-request.js";
 import { User } from "../Models/user.model.js";
 import { Otp } from "../Models/Otp.model.js";
 import {
@@ -38,7 +39,7 @@ function checkTokenUserId(token: string, currentUserId: string) {
     }
 }
 
-export const requestCurrentEmailOtp = asynchandler(async (req: Request, res: Response) => {
+export const requestCurrentEmailOtp = asynchandler(async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?._id;
     const user = await User.findById(userId).select("email");
     
@@ -53,7 +54,7 @@ export const requestCurrentEmailOtp = asynchandler(async (req: Request, res: Res
     );
 });
 
-export const verifyCurrentEmailOtp = asynchandler(async (req: Request, res: Response) => {
+export const verifyCurrentEmailOtp = asynchandler(async (req: AuthenticatedRequest, res: Response) => {
     const otpInput = String(req.body?.otp || "").trim();
     const userId = req.user?._id;
 
@@ -94,7 +95,7 @@ export const verifyCurrentEmailOtp = asynchandler(async (req: Request, res: Resp
     );
 });
 
-export const requestNewEmailOtp = asynchandler(async (req: Request, res: Response) => {
+export const requestNewEmailOtp = asynchandler(async (req: AuthenticatedRequest, res: Response) => {
     const newEmail = String(req.body?.newEmail || "").trim().toLowerCase();
     const verificationToken = String(req.body?.verificationToken || "");
     const userId = req.user?._id;
@@ -126,7 +127,7 @@ export const requestNewEmailOtp = asynchandler(async (req: Request, res: Respons
     );
 });
 
-export const confirmEmailChange = asynchandler(async (req: Request, res: Response) => {
+export const confirmEmailChange = asynchandler(async (req: AuthenticatedRequest, res: Response) => {
     const newEmail = String(req.body?.newEmail || "").trim().toLowerCase();
     const otpInput = String(req.body?.otp || "").trim();
     const verificationToken = String(req.body?.verificationToken || "");
