@@ -3,7 +3,6 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 
-// Import your webhook controller directly
 import { handleStripeWebhook } from "./Controllers/Subscription.controller.js";
 
 import AuthRoutes from "./Routes/AuthRoute.js";
