@@ -113,6 +113,27 @@ export const createSubscriptionSetup = asynchandler(async (req: AuthenticatedReq
     { upsert: true }
   );
 
+  await Invoice.findOneAndUpdate(
+    { stripeInvoiceId: latestInvoice.id },
+    {
+      $set: {
+        stripePaymentIntentId: paymentIntent.id,
+      },
+      $setOnInsert: {
+        user: user._id,
+        stripeInvoiceId: latestInvoice.id,
+        stripeSubscriptionId: subscription.id,
+        amountPaid: latestInvoice.amount_paid,
+        currency: latestInvoice.currency,
+        status: latestInvoice.status ?? "open",
+        hostedInvoiceUrl: latestInvoice.hosted_invoice_url ?? null,
+        invoicePdf: latestInvoice.invoice_pdf ?? null,
+        paidAt: null,
+      },
+    },
+    { upsert: true }
+  );
+
   return res.status(200).json(
     new Apiresponse(
       200,
@@ -428,24 +449,26 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
 
         if (!piId) {
           console.warn(
-            `[Stripe Webhook] Paid invoice ${invoice.id} has no PaymentIntent reference; saving invoice with null stripePaymentIntentId`
+            `[Stripe Webhook] Paid invoice ${invoice.id} has no PaymentIntent reference; preserving any existing stripePaymentIntentId`
           );
         }
 
+        const invoiceUpdate: Record<string, unknown> = {
+          user: user._id,
+          stripeInvoiceId: invoice.id,
+          stripeSubscriptionId: subscription.id,
+          amountPaid: invoice.amount_paid,
+          currency: invoice.currency,
+          status: invoice.status ?? "paid",
+          hostedInvoiceUrl: invoice.hosted_invoice_url ?? null,
+          invoicePdf: invoice.invoice_pdf ?? null,
+          paidAt: safeDate(invoice.status_transitions?.paid_at ?? undefined) ?? new Date(),
+        };
+        if (piId) invoiceUpdate.stripePaymentIntentId = piId;
+
         await Invoice.findOneAndUpdate(
           { stripeInvoiceId: invoice.id },
-          {
-            user: user._id,
-            stripeInvoiceId: invoice.id,
-            stripeSubscriptionId: subscription.id,
-            stripePaymentIntentId: piId,
-            amountPaid: invoice.amount_paid,
-            currency: invoice.currency,
-            status: invoice.status ?? "paid",
-            hostedInvoiceUrl: invoice.hosted_invoice_url ?? null,
-            invoicePdf: invoice.invoice_pdf ?? null,
-            paidAt: safeDate(invoice.status_transitions?.paid_at ?? undefined) ?? new Date(),
-          },
+          invoiceUpdate,
           { upsert: true }
         );
         break;

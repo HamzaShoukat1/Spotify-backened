@@ -4,6 +4,7 @@ export interface IDailyListeningUsage extends Document {
     user: mongoose.Types.ObjectId;
     usageDate: string;
     listenCount: number;
+    listenedSongIds: mongoose.Types.ObjectId[];
 }
 
 const dailyListeningUsageSchema = new Schema<IDailyListeningUsage>(
@@ -11,6 +12,10 @@ const dailyListeningUsageSchema = new Schema<IDailyListeningUsage>(
         user: { type: Schema.Types.ObjectId, ref: "User", required: true },
         usageDate: { type: String, required: true },
         listenCount: { type: Number, required: true, default: 0, min: 0 },
+        listenedSongIds: {
+            type: [{ type: Schema.Types.ObjectId, ref: "Music" }],
+            default: [],
+        },
     },
     { timestamps: true },
 );

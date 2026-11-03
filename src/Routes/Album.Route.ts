@@ -10,7 +10,7 @@ router.post(
   verifyjwt,
   upload.fields([
     { name: "coverPhoto", maxCount: 1 },
-    { name: "tracks", maxCount: 50 },
+    { name: "tracks", maxCount: 20 },
   ]),
   createAlbum,
 );

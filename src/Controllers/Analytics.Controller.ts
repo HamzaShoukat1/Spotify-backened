@@ -6,14 +6,12 @@ import mongoose from "mongoose";
 import { Artist } from "../Models/artist.model.js";
 import { Music } from "../Models/music.model.js";
 import { DailyListeningUsage } from "../Models/DailyListeningUsage.model.js";
-import { ListeningSession } from "../Models/ListeningSession.model.js";
 import { Subscription } from "../Models/subscription.modal.js";
 import { User } from "../Models/user.model.js";
 import { stripe } from "../config/stripe.js";
 import { RecentSongsPlaying } from "../Models/RecentSongPlaying.model.js";
 
 const FREE_DAILY_LISTEN_LIMIT = 3;
-const MINIMUM_LISTEN_DURATION_MS = 2 * 60 * 1000;
 
 function getUtcUsageDate(date = new Date()): string {
     return date.toISOString().slice(0, 10);
@@ -78,40 +76,61 @@ async function hasPremiumAccess(userId: mongoose.Types.ObjectId, planTier?: stri
     return true;
 };
 
-async function reserveFreeListen(userId: mongoose.Types.ObjectId, usageDate: string) {
-    const updatedUsage = await DailyListeningUsage.findOneAndUpdate(
+async function registerFreeListen(
+    userId: mongoose.Types.ObjectId,
+    usageDate: string,
+    musicId: mongoose.Types.ObjectId,
+) {
+    const addUniqueListen = () => DailyListeningUsage.findOneAndUpdate(
         {
             user: userId,
             usageDate,
-            listenCount: { $lt: FREE_DAILY_LISTEN_LIMIT }
+            listenCount: { $lt: FREE_DAILY_LISTEN_LIMIT },
+            listenedSongIds: { $ne: musicId },
         },
-        { $inc: { listenCount: 1 } },
+        {
+            $addToSet: { listenedSongIds: musicId },
+            $inc: { listenCount: 1 },
+        },
         { returnDocument: "after" },
     );
 
+    const updatedUsage = await addUniqueListen();
     if (updatedUsage) return updatedUsage;
+
+    const existingUsage = await DailyListeningUsage.findOne({
+        user: userId,
+        usageDate,
+    });
+    if (existingUsage?.listenedSongIds?.some((id) => String(id) === String(musicId))) {
+        return existingUsage;
+    }
+    if (existingUsage && existingUsage.listenCount >= FREE_DAILY_LISTEN_LIMIT) {
+        throw new Apierror(429, "You have reached today's free listening limit");
+    }
 
     try {
         return await DailyListeningUsage.create({
             user: userId,
             usageDate,
             listenCount: 1,
+            listenedSongIds: [musicId],
         });
     } catch (error) {
         if ((error as { code?: number })?.code !== 11000) throw error;
 
-        const retriedUsage = await DailyListeningUsage.findOneAndUpdate(
-            {
+        const retriedUsage = await addUniqueListen();
+
+        if (!retriedUsage) {
+            const concurrentUsage = await DailyListeningUsage.findOne({
                 user: userId,
                 usageDate,
-                listenCount: { $lt: FREE_DAILY_LISTEN_LIMIT },
-            },
-            { $inc: { listenCount: 1 } },
-            { returnDocument: "after" },
-        );
-
-        if (!retriedUsage)
+            });
+            if (concurrentUsage?.listenedSongIds?.some((id) => String(id) === String(musicId))) {
+                return concurrentUsage;
+            }
             throw new Apierror(429, "You have reached today's free listening limit");
+        }
         return retriedUsage;
     }
 };
@@ -160,18 +179,11 @@ export const startListening = asynchandler(async (req, res) => {
         user: userId,
         usageDate,
     }).lean();
-    const completedCount = usage?.listenCount ?? 0;
-    if (completedCount >= FREE_DAILY_LISTEN_LIMIT) {
+    const completedCount = usage?.listenedSongIds?.length ?? usage?.listenCount ?? 0;
+    const alreadyListened = usage?.listenedSongIds?.some((id) => String(id) === musicId);
+    if (completedCount >= FREE_DAILY_LISTEN_LIMIT && !alreadyListened) {
         throw new Apierror(429, "You have reached today's free listening limit");
     }
-
-    const session = await ListeningSession.create({
-        user: userId,
-        music: musicId,
-        usageDate,
-        startedAt: now,
-        status: "started",
-    });
 
     await RecentSongsPlaying.updateOne(
         { user: userId, music: musicId },
@@ -185,142 +197,62 @@ export const startListening = asynchandler(async (req, res) => {
             {
                 allowed: true,
                 isPremium: false,
-                sessionId: session._id,
+                sessionId: null,
                 remaining: Math.max(FREE_DAILY_LISTEN_LIMIT - completedCount, 0),
                 dailyLimit: FREE_DAILY_LISTEN_LIMIT,
+                playCount: completedCount,
+                isLimitReached: completedCount >= FREE_DAILY_LISTEN_LIMIT,
             },
             "Listening session started",
         ),
     );
 });
 
-export const completeListening = asynchandler(async (req, res) => {
+export const registerListening = asynchandler(async (req, res) => {
     const userId = req.user?._id;
-    const { sessionId, listenedSeconds } = req.body as {
-        sessionId?: string;
-        listenedSeconds?: number;
-    };
+    const { musicId } = req.body as { musicId?: string };
 
-    if (!userId || !mongoose.isValidObjectId(userId))
+    if (!userId || !mongoose.isValidObjectId(userId)) {
         throw new Apierror(401, "Unauthorized");
+    }
+    if (!musicId || !mongoose.isValidObjectId(musicId)) {
+        throw new Apierror(400, "A valid musicId is required");
+    }
+    if (!(await Music.exists({ _id: musicId }))) {
+        throw new Apierror(404, "Music not found");
+    }
 
     if (await hasPremiumAccess(userId, req.user?.planTier)) {
-        return res
-            .status(200)
-            .json(
-                new Apiresponse(
-                    200,
-                    { counted: false, isPremium: true, remaining: null, thresholdReached: false },
-                    "Premium listening does not count towards daily limits",
-                ),
-            );
-    }
-
-    if (!sessionId || !mongoose.isValidObjectId(sessionId))
-        throw new Apierror(400, "A valid sessionId is required");
-
-    const session = await ListeningSession.findOne({
-        _id: sessionId,
-        user: userId,
-    }).lean();
-    if (!session) throw new Apierror(404, "Listening session not found");
-
-    if (session.status === "completed") {
-        const usage = await DailyListeningUsage.findOne({
-            user: userId,
-            usageDate: session.usageDate,
-        }).lean();
-        const count = usage?.listenCount ?? 0;
-        return res
-            .status(200)
-            .json(
-                new Apiresponse(
-                    200,
-                    {
-                        counted: true,
-                        listenCount: count,
-                        remaining: Math.max(FREE_DAILY_LISTEN_LIMIT - count, 0),
-                        dailyLimit: FREE_DAILY_LISTEN_LIMIT,
-                        thresholdReached: count >= FREE_DAILY_LISTEN_LIMIT,
-                    },
-                    "Listening session already counted",
-                ),
-            );
-    }
-
-    const elapsedMs = Date.now() - session.startedAt.getTime();
-    const listenedMs = Number(listenedSeconds) * 1000;
-    if (
-        !Number.isFinite(listenedMs) ||
-        listenedMs < MINIMUM_LISTEN_DURATION_MS ||
-        elapsedMs < MINIMUM_LISTEN_DURATION_MS
-    ) {
-        const usage = await DailyListeningUsage.findOne({
-            user: userId,
-            usageDate: session.usageDate,
-        }).lean();
-        const count = usage?.listenCount ?? 0;
-
         return res.status(200).json(
-            new Apiresponse(
-                200,
-                {
-                    counted: false,
-                    listenCount: count,
-                    remaining: Math.max(FREE_DAILY_LISTEN_LIMIT - count, 0),
-                    dailyLimit: FREE_DAILY_LISTEN_LIMIT,
-                    thresholdReached: false,
-                },
-                "Listen was too short to count",
-            ),
+            new Apiresponse(200, {
+                counted: false,
+                isPremium: true,
+                playCount: null,
+                isLimitReached: false,
+                remaining: null,
+                dailyLimit: null,
+            }, "Premium listening does not count towards daily limits"),
         );
     }
 
-    const claimedSession = await ListeningSession.findOneAndUpdate(
-        { _id: session._id, user: userId, status: "started" },
-        { status: "completed", completedAt: new Date() },
-        { returnDocument: "after" },
+    const usage = await registerFreeListen(
+        userId,
+        getUtcUsageDate(),
+        new mongoose.Types.ObjectId(musicId),
     );
-    if (!claimedSession) {
-        return res
-            .status(200)
-            .json(
-                new Apiresponse(
-                    200,
-                    { counted: true },
-                    "Listening session already counted",
-                ),
-            );
-    }
-
-    let usage;
-    try {
-        usage = await reserveFreeListen(userId, session.usageDate);
-    } catch (error) {
-        await ListeningSession.updateOne(
-            { _id: session._id, user: userId, status: "completed" },
-            { status: "started", $unset: { completedAt: 1 } },
-        );
-        throw error;
-    }
-
-    const remaining = Math.max(FREE_DAILY_LISTEN_LIMIT - usage.listenCount, 0);
-    const thresholdReached = usage.listenCount >= FREE_DAILY_LISTEN_LIMIT;
+    const playCount = usage.listenedSongIds?.length ?? usage.listenCount;
 
     return res.status(200).json(
-        new Apiresponse(
-            200,
-            {
-                counted: true,
-                listenCount: usage.listenCount,
-                remaining,
-                dailyLimit: FREE_DAILY_LISTEN_LIMIT,
-                thresholdReached,
-            },
-            thresholdReached
-                ? "Daily free listen limit reached"
-                : "Listening session counted",
-        ),
+        new Apiresponse(200, {
+            counted: true,
+            isPremium: false,
+            playCount,
+            listenCount: playCount,
+            isLimitReached: playCount >= FREE_DAILY_LISTEN_LIMIT,
+            thresholdReached: playCount >= FREE_DAILY_LISTEN_LIMIT,
+            remaining: Math.max(FREE_DAILY_LISTEN_LIMIT - playCount, 0),
+            dailyLimit: FREE_DAILY_LISTEN_LIMIT,
+        }, "Listening milestone registered"),
     );
 });
 
