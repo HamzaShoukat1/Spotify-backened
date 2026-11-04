@@ -15,6 +15,8 @@ import SubscriptionRoute from "./Routes/Subscription.Route.js";
 import { errorHandler } from "./Middlewares/error.middleware.js";
 import PlaylistRoute from "./Routes/Playlist.Route.js";
 import AlbumRoute from "./Routes/Album.Route.js";
+import AiAgentRoute from "./Routes/aiAgent.Route.js";
+import MusicDNARoute from "./Routes/MusicDNA.Route.js";
 
 dotenv.config();
 
@@ -63,6 +65,8 @@ app.use("/song", LikesRoute);
 app.use("/subscription", SubscriptionRoute); 
 app.use("/api", PlaylistRoute);
 app.use("/api/albums", AlbumRoute);
+app.use("/api/ai-agent", AiAgentRoute);
+app.use("/api/ai", MusicDNARoute);
 
 app.use(errorHandler);
 

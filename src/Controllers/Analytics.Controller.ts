@@ -116,6 +116,7 @@ async function registerFreeListen(
             listenCount: 1,
             listenedSongIds: [musicId],
         });
+        
     } catch (error) {
         if ((error as { code?: number })?.code !== 11000) throw error;
 
