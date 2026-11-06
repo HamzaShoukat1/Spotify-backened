@@ -1,8 +1,18 @@
 import mongoose from "mongoose";
 import { Playlist } from "../../../Models/playlist.model.js";
 import { Apierror } from "../../../utils/Apierror.js";
+import { z } from "zod";
 
-export type DeletePlaylistArgs = { playlistId?: string; playlistName?: string; all?: boolean };
+const deletePlaylistArgsSchema = z.object({
+  playlistId: z.string().trim().refine(mongoose.Types.ObjectId.isValid).optional(),
+  playlistName: z.string().trim().min(1).optional(),
+  all: z.boolean().optional(),
+}).refine(
+  (value) => value.all === true || Boolean(value.playlistId) !== Boolean(value.playlistName),
+  "Provide exactly one playlist ID, playlist name, or all=true",
+);
+
+export type DeletePlaylistArgs = z.infer<typeof deletePlaylistArgsSchema>;
 
 export async function deletePlaylist(userId: string, args: DeletePlaylistArgs) {
   if (args.all) {
@@ -24,22 +34,9 @@ export async function deletePlaylist(userId: string, args: DeletePlaylistArgs) {
 }
 
 export function validateDeletePlaylistArgs(args: unknown): DeletePlaylistArgs {
-  if (!args || typeof args !== "object" || Array.isArray(args)) {
-    throw new Apierror(400, "Invalid delete playlist arguments");
-  }
-  const value = args as Record<string, unknown>;
-  const hasId = typeof value.playlistId === "string" && value.playlistId.trim().length > 0;
-  const hasName = typeof value.playlistName === "string" && value.playlistName.trim().length > 0;
-  const all = value.all === true;
-  if (all) return { all: true };
-  if (hasId === hasName) throw new Apierror(400, "Provide exactly one playlist ID or playlist name");
-  if (hasId && !mongoose.Types.ObjectId.isValid(value.playlistId as string)) {
-    throw new Apierror(400, "Playlist ID is invalid");
-  }
-
-  return hasId
-    ? { playlistId: value.playlistId as string }
-    : { playlistName: value.playlistName as string };
+  const result = deletePlaylistArgsSchema.safeParse(args);
+  if (!result.success) throw new Apierror(400, "Invalid delete playlist arguments");
+  return result.data;
 }
 
 function escapeRegExp(value: string) {

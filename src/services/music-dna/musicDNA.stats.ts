@@ -16,6 +16,8 @@ export type MusicSummary = {
 export type MusicDNAStatistics = {
   historyCount: number;
   totalStreams: number;
+  topGenres: string[];
+  topArtists: string[];
   topTracks: MusicSummary[];
   recentTracks: MusicSummary[];
   likedTracks: MusicSummary[];
@@ -59,26 +61,77 @@ export async function collectMusicDNAStatistics(userId: string): Promise<MusicDN
   const recentTracks = recentRows.flatMap((row) => toMusicSummary(row.music));
   const likedTracks = likedRows.flatMap((row) => toMusicSummary(row.music));
   const topTracks = streamRows.filter((row) => row.title && row.artist).slice(0, 15);
+  const { topArtists, topGenres } = computeTopEntities(streamRows, recentTracks, likedTracks);
 
   return {
     historyCount: topTracks.length + recentTracks.length + likedTracks.length,
     totalStreams: topTracks.reduce((total, row) => total + (row.playCount ?? 0), 0),
+    topGenres,
+    topArtists,
     topTracks,
     recentTracks: recentTracks.slice(0, 10),
     likedTracks: likedTracks.slice(0, 10),
   };
 }
 
-export function createLimitedMusicDNAProfile(historyCount: number) {
+export function createLimitedMusicDNAProfile(
+  historyCount: number,
+  topGenres: string[] = [],
+  topArtists: string[] = [],
+) {
   return {
     headline: "Your Music DNA is just getting started",
     personality: "We need a little more listening history to describe your musical personality.",
-    topGenres: [],
-    topArtists: [],
+    topGenres,
+    topArtists,
     listeningHabits: [`Listen to a few more songs to build your Music DNA (${historyCount} signals recorded so far).`],
     surprisingInsight: "Your listening story is still unfolding.",
     recommendationDirections: ["Play more songs", "Like songs you want us to remember"],
   };
+}
+
+function computeTopEntities(
+  streamRows: (MusicSummary & { playCount?: number })[],
+  recentTracks: MusicSummary[],
+  likedTracks: MusicSummary[],
+) {
+  const artistCounts = new Map<string, number>();
+  const genreCounts = new Map<string, number>();
+
+  const record = (map: Map<string, number>, value: string | undefined, weight: number) => {
+    if (!value) return;
+    const clean = value.trim();
+    if (!clean) return;
+    map.set(clean, (map.get(clean) ?? 0) + weight);
+  };
+
+  for (const track of streamRows) {
+    const weight = typeof track.playCount === "number" && track.playCount > 0 ? track.playCount : 1;
+    record(artistCounts, track.artist, weight);
+    record(genreCounts, track.genre, weight);
+  }
+
+  for (const track of recentTracks) {
+    record(artistCounts, track.artist, 1);
+    record(genreCounts, track.genre, 1);
+  }
+
+  for (const track of likedTracks) {
+    record(artistCounts, track.artist, 2);
+    record(genreCounts, track.genre, 2);
+  }
+
+  const topArtists = [...artistCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([artist]) => artist)
+    .slice(0, 10);
+
+  const topGenres = [...genreCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([genre]) => genre)
+    .slice(0, 10);
+
+  return { topArtists, topGenres };
 }
 
 function toMusicSummary(value: unknown): MusicSummary[] {

@@ -1,15 +1,15 @@
 import { Playlist } from "../../../Models/playlist.model.js";
 import { Apierror } from "../../../utils/Apierror.js";
+import { z } from "zod";
 
-export type CreatePlaylistArgs = { name: string };
+const createPlaylistArgsSchema = z.object({
+    name: z.string().trim().min(1).max(100),
+});
+
+export type CreatePlaylistArgs = z.infer<typeof createPlaylistArgsSchema>;
 
 export async function createPlaylist(userId: string, args: CreatePlaylistArgs) {
-    const name = typeof args.name === "string" ? args.name.trim() : "";
-    if (name.length < 1 || name.length > 100)
-        throw new Apierror(
-            400,
-            "Playlist name must be between 1 and 100 characters",
-        );
+    const name = args.name;
 
     const playlist = await Playlist.create({ name, owner: userId, songs: [] });
     return {
@@ -18,14 +18,10 @@ export async function createPlaylist(userId: string, args: CreatePlaylistArgs) {
         owner: userId,
         songs: [],
     };
-}
+};
 
 export function validateCreatePlaylistArgs(args: unknown): CreatePlaylistArgs {
-    if (!args || typeof args !== "object" || Array.isArray(args)) {
-        throw new Apierror(400, "Invalid playlist arguments");
-    }
-    const value = args as Record<string, unknown>;
-    if (typeof value.name !== "string")
-        throw new Apierror(400, "Playlist name is required");
-    return { name: value.name };
-}
+    const result = createPlaylistArgsSchema.safeParse(args);
+    if (!result.success) throw new Apierror(400, "Invalid playlist arguments");
+    return result.data;
+};

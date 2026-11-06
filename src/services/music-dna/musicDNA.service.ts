@@ -1,4 +1,4 @@
-import type { MusicDNAProfile } from "../../Models/music-dna.model.js";
+import type { MusicDNAProfile, } from "../../Models/music-dna.model.js";
 import { getCachedMusicDNA, saveMusicDNACache } from "./musicDNA.cache.js";
 import { generateMusicDNAProfile } from "./musicDNA.groq.js";
 import { createLimitedMusicDNAProfile, collectMusicDNAStatistics } from "./musicDNA.stats.js";
@@ -21,7 +21,7 @@ export async function getMusicDNA(userId: string, refresh = false) {
   const statistics = await collectMusicDNAStatistics(userId);
   const isLimitedData = statistics.historyCount < MINIMUM_HISTORY_ITEMS;
   const profile: MusicDNAProfile = isLimitedData
-    ? createLimitedMusicDNAProfile(statistics.historyCount)
+    ? createLimitedMusicDNAProfile(statistics.historyCount, statistics.topGenres, statistics.topArtists)
     : await generateMusicDNAProfile(statistics);
 
   return saveMusicDNACache(userId, profile, isLimitedData);

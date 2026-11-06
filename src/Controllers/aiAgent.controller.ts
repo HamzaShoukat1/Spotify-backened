@@ -11,5 +11,7 @@ export async function voiceAgent(req: AuthenticatedRequest, res: Response) {
     if (!userId) throw new Apierror(401, "Unauthorized request");
 
     const result = await processVoiceAgent(userId, file);
-    return res.status(200).json(new Apiresponse(200, result, "Voice request processed"));
+    return res
+        .status(200)
+        .json(new Apiresponse(200, result, "Voice request processed"));
 }

@@ -1,15 +1,22 @@
 import { Music } from "../../../Models/music.model.js";
 import { LikedSong } from "../../../Models/UserLikedSong.model.js";
 import { Apierror } from "../../../utils/Apierror.js";
+import { z } from "zod";
 
-export type SearchSongsArgs = {
-  query?: string;
-  genre?: string[] | string;
-  language?: string[] | string;
-  mood?: string[] | string;
-  limit?: number;
-  excludeLiked?: boolean;
-};
+const stringOrList = z.union([z.string(), z.array(z.string())]).optional();
+const searchSongsArgsSchema = z.object({
+  query: z.string().optional(),
+  genre: stringOrList,
+  language: stringOrList,
+  mood: stringOrList,
+  limit: z.coerce.number().int().min(1).max(30).optional(),
+  excludeLiked: z.preprocess(
+    (value) => typeof value === "string" ? value.toLowerCase() === "true" : value,
+    z.boolean().optional(),
+  ),
+});
+
+export type SearchSongsArgs = z.infer<typeof searchSongsArgsSchema>;
 
 export async function searchSongs(userId: string, args: SearchSongsArgs) {
   const query = typeof args.query === "string" ? args.query.trim() : "";
@@ -54,21 +61,9 @@ export async function searchSongs(userId: string, args: SearchSongsArgs) {
 }
 
 export function validateSearchSongsArgs(args: unknown): SearchSongsArgs {
-  if (!args || typeof args !== "object" || Array.isArray(args)) {
-    throw new Apierror(400, "Invalid search arguments");
-  }
-  const value = args as Record<string, unknown>;
-  if (value.genre !== undefined && (typeof value.genre !== "string" && (!Array.isArray(value.genre) || value.genre.some((item) => typeof item !== "string")))) {
-    throw new Apierror(400, "Genre must be an array of strings");
-  }
-  if (value.limit !== undefined && (typeof value.limit !== "number" || !Number.isInteger(value.limit))) {
-    throw new Apierror(400, "Limit must be an integer");
-  }
-  const result = value as SearchSongsArgs;
-  if (value.excludeLiked !== undefined && typeof value.excludeLiked !== "boolean") {
-    result.excludeLiked = String(value.excludeLiked).toLowerCase() === "true";
-  }
-  return result;
+  const result = searchSongsArgsSchema.safeParse(args);
+  if (!result.success) throw new Apierror(400, "Invalid search arguments");
+  return result.data;
 }
 
 function normalizeList(value: string[] | string | undefined) {

@@ -1,5 +1,19 @@
 import { Apierror } from "../../utils/Apierror.js";
 import type { MusicDNAProfile } from "../../Models/music-dna.model.js";
+import { z } from "zod";
+
+const profileText = z.string().trim().min(1).max(500);
+const profileList = z.array(z.string().trim().min(1).max(160)).max(10);
+
+export const musicDNAProfileSchema = z.object({
+  headline: profileText.max(120),
+  personality: profileText,
+  topGenres: profileList,
+  topArtists: profileList,
+  listeningHabits: profileList,
+  surprisingInsight: profileText,
+  recommendationDirections: profileList,
+});
 
 export function parseMusicDNAResponse(content: string): MusicDNAProfile {
   try {
@@ -12,31 +26,7 @@ export function parseMusicDNAResponse(content: string): MusicDNAProfile {
 }
 
 export function validateMusicDNAProfile(value: unknown): MusicDNAProfile {
-  if (!value || typeof value !== "object") {
-    throw new Apierror(502, "Music DNA AI returned an invalid profile");
-  }
-  const data = value as Record<string, unknown>;
-  const requiredText = ["headline", "personality", "surprisingInsight"];
-  const arrayFields = ["topGenres", "topArtists", "listeningHabits", "recommendationDirections"];
-
-  if (requiredText.some((key) => typeof data[key] !== "string")) {
-    throw new Apierror(502, "Music DNA AI returned an incomplete profile");
-  }
-  if (arrayFields.some((key) => !isStringArray(data[key]))) {
-    throw new Apierror(502, "Music DNA AI returned invalid profile lists");
-  }
-
-  return {
-    headline: data.headline as string,
-    personality: data.personality as string,
-    surprisingInsight: data.surprisingInsight as string,
-    topGenres: data.topGenres as string[],
-    topArtists: data.topArtists as string[],
-    listeningHabits: data.listeningHabits as string[],
-    recommendationDirections: data.recommendationDirections as string[],
-  };
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
+  const result = musicDNAProfileSchema.safeParse(value);
+  if (!result.success) throw new Apierror(502, "Music DNA AI returned an invalid profile");
+  return result.data;
 }

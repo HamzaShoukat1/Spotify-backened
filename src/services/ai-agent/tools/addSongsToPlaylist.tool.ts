@@ -2,17 +2,20 @@ import mongoose from "mongoose";
 import { Music } from "../../../Models/music.model.js";
 import { Playlist } from "../../../Models/playlist.model.js";
 import { Apierror } from "../../../utils/Apierror.js";
+import { z } from "zod";
 
-export type AddSongsArgs = {
-  playlistId?: string;
-  playlistName?: string;
-  songIds: string[];
-};
+const addSongsArgsSchema = z.object({
+  playlistId: z.string().trim().refine(mongoose.Types.ObjectId.isValid).optional(),
+  playlistName: z.string().trim().min(1).optional(),
+  songIds: z.array(z.string().trim().refine(mongoose.Types.ObjectId.isValid)).min(1).max(50),
+}).refine(
+  (value) => Boolean(value.playlistId) !== Boolean(value.playlistName),
+  "Provide exactly one playlist ID or playlist name",
+);
+
+export type AddSongsArgs = z.infer<typeof addSongsArgsSchema>;
 
 export async function addSongsToPlaylist(userId: string, args: AddSongsArgs) {
-  if (args.songIds.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
-    throw new Apierror(400, "One or more song IDs are invalid");
-  }
   const songIds = [...new Set(args.songIds)];
   if (!songIds.length || songIds.length > 50)
     throw new Apierror(400, "Provide between 1 and 50 valid songs");
@@ -20,9 +23,9 @@ export async function addSongsToPlaylist(userId: string, args: AddSongsArgs) {
   const playlist = args.playlistId
     ? await Playlist.findOne({ _id: args.playlistId, owner: userId })
     : await Playlist.findOne({
-        owner: userId,
-        name: new RegExp(`^${escapeRegExp(args.playlistName ?? "")}$`, "i"),
-      }).sort({ createdAt: -1 });
+      owner: userId,
+      name: new RegExp(`^${escapeRegExp(args.playlistName ?? "")}$`, "i"),
+    }).sort({ createdAt: -1 });
   if (!playlist) throw new Apierror(404, "Playlist not found");
 
   const songs = await Music.find({ _id: { $in: songIds } })
@@ -50,35 +53,9 @@ export async function addSongsToPlaylist(userId: string, args: AddSongsArgs) {
 }
 
 export function validateAddSongsArgs(args: unknown): AddSongsArgs {
-  if (!args || typeof args !== "object" || Array.isArray(args)) {
-    throw new Apierror(400, "Invalid add songs arguments");
-  }
-  const value = args as Record<string, unknown>;
-  const hasPlaylistId =
-    typeof value.playlistId === "string" && value.playlistId.trim().length > 0;
-  const hasPlaylistName =
-    typeof value.playlistName === "string" &&
-    value.playlistName.trim().length > 0;
-  if (
-    hasPlaylistId === hasPlaylistName ||
-    !Array.isArray(value.songIds) ||
-    value.songIds.some((id) => typeof id !== "string")
-  ) {
-    throw new Apierror(
-      400,
-      "Provide exactly one playlist ID or playlist name and valid song IDs",
-    );
-  }
-  if (
-    hasPlaylistId &&
-    !mongoose.Types.ObjectId.isValid(value.playlistId as string)
-  ) {
-    throw new Apierror(400, "Playlist ID is invalid");
-  }
-  const result: AddSongsArgs = { songIds: value.songIds as string[] };
-  if (hasPlaylistId) result.playlistId = value.playlistId as string;
-  if (hasPlaylistName) result.playlistName = value.playlistName as string;
-  return result;
+  const result = addSongsArgsSchema.safeParse(args);
+  if (!result.success) throw new Apierror(400, "Invalid add songs arguments");
+  return result.data;
 }
 
 function escapeRegExp(value: string) {
