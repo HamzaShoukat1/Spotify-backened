@@ -21,7 +21,6 @@ export async function processVoiceAgent(userId: string, file: Express.Multer.Fil
     if (!text) throw new Apierror(422, "No speech was detected");
 
     const cutoff = new Date(Date.now() - SESSION_INACTIVITY_MS);
-    //15 min sliding window to find the most recent active session for the user
     let chatSession = await ChatSession.findOne({
         user: userId,
         updatedAt: { $gte: cutoff },
@@ -30,7 +29,6 @@ export async function processVoiceAgent(userId: string, file: Express.Multer.Fil
 
     const historyMessages = chatSession ? chatSession.messages.slice(-4) : [];
 
-    // Resolve the active playlist from the session or recently updated by the user
     let activePlaylist: { _id: mongoose.Types.ObjectId; name: string } | null = null;
     if (chatSession?.playlist) {
         activePlaylist = await Playlist.findOne({

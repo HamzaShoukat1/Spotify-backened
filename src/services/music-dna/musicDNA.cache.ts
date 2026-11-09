@@ -18,7 +18,7 @@ export async function saveMusicDNACache(userId: string, profile: MusicDNAProfile
         isLimitedData,
       },
     },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
+    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
   ).lean();
 
   return {

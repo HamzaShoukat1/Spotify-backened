@@ -57,7 +57,7 @@ export const renamePlaylist = asynchandler(async (req, res) => {
   const playlist = await Playlist.findOneAndUpdate(
     { _id: id, owner: req.user?._id },
     { name: name.trim() },
-    { new: true }
+    { returnDocument: "after" }
   );
 
   if (!playlist) throw new Apierror(404, "Playlist not found");

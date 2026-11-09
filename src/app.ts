@@ -17,6 +17,7 @@ import PlaylistRoute from "./Routes/Playlist.Route.js";
 import AlbumRoute from "./Routes/Album.Route.js";
 import AiAgentRoute from "./Routes/aiAgent.Route.js";
 import MusicDNARoute from "./Routes/MusicDNA.Route.js";
+import DownloadRoute from "./Routes/Download.Route.js";
 
 dotenv.config();
 
@@ -67,6 +68,7 @@ app.use("/api", PlaylistRoute);
 app.use("/api/albums", AlbumRoute);
 app.use("/api/ai-agent", AiAgentRoute);
 app.use("/api/ai", MusicDNARoute);
+app.use("/downloads", DownloadRoute);
 
 app.use(errorHandler);
 
