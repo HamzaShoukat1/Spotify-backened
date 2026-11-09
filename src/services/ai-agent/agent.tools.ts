@@ -5,16 +5,19 @@ export const agentTools: ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "searchSongs",
-      description: "Search the existing catalogue. Genre and language are supported metadata; mood is not available.",
+      description: "Search the existing catalogue by title, artist, genre, language, or emotional/situational mood context.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "Song title or artist text" },
-          genre: { description: "Genre or genres, for example Hindi or [Hindi, Pop]" },
-          language: { description: "Language, for example Hindi or English" },
-          mood: { description: "Optional mood preference; mood is not stored as catalogue metadata" },
-          limit: { description: "Maximum number of songs" },
-          excludeLiked: { description: "Whether to exclude the user's liked songs" },
+          query: { type: "string", description: "Song title, artist text, or semantic search keywords" },
+          genre: { type: "string", description: "Genre or genres, for example Hindi or Pop" },
+          language: { type: "string", description: "Language, for example Hindi or English" },
+          mood: {
+            type: "string",
+            description: "The mood or energy level extracted from user context (e.g., energetic, relaxed, sad, happy, dark, focus, workout)."
+          },
+          limit: { type: "number", description: "Maximum number of songs to return" },
+          excludeLiked: { type: "boolean", description: "Whether to exclude the user's liked songs" },
         },
       },
     },
@@ -23,11 +26,12 @@ export const agentTools: ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "createPlaylist",
-      description: "Create a playlist owned by the authenticated user.",
+      description: "Create a playlist owned by the authenticated user. Can be themed around a requested mood or vibe.",
       parameters: {
         type: "object",
         properties: {
-          name: { type: "string", minLength: 1, maxLength: 100 },
+          name: { type: "string", minLength: 1, maxLength: 100, description: "Descriptive name for the playlist, incorporating the mood context if provided" },
+          mood: { type: "string", description: "Optional underlying mood tag tied to this playlist initialization" }
         },
         required: ["name"],
         additionalProperties: false,
@@ -51,7 +55,6 @@ export const agentTools: ChatCompletionTool[] = [
       },
     },
   },
-
   {
     type: "function",
     function: {

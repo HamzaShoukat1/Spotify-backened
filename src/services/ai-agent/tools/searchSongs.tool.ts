@@ -8,7 +8,7 @@ const searchSongsArgsSchema = z.object({
   query: z.string().optional(),
   genre: stringOrList,
   language: stringOrList,
-  mood: stringOrList,
+  mood: stringOrList, 
   limit: z.coerce.number().int().min(1).max(30).optional(),
   excludeLiked: z.preprocess(
     (value) => typeof value === "string" ? value.toLowerCase() === "true" : value,
@@ -22,17 +22,34 @@ export async function searchSongs(userId: string, args: SearchSongsArgs) {
   const query = typeof args.query === "string" ? args.query.trim() : "";
   const genre = normalizeList(args.genre).slice(0, 5);
   const language = normalizeList(args.language)[0] ?? "";
+  const moodList = normalizeList(args.mood); 
   const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 30);
 
   const filters: Record<string, unknown>[] = [];
-  if (query) {
-    filters.push({
-      $or: [
+  
+  if (query || moodList.length > 0) {
+    const searchConditions: Record<string, unknown>[] = [];
+    
+    if (query) {
+      searchConditions.push(
         { musicTitle: { $regex: query, $options: "i" } },
-        { primaryArtistName: { $regex: query, $options: "i" } },
-      ],
-    });
+        { primaryArtistName: { $regex: query, $options: "i" } }
+      );
+    }
+    
+    if (moodList.length > 0) {
+      moodList.forEach((moodKeyword) => {
+        const escapedMood = escapeRegExp(moodKeyword);
+        searchConditions.push(
+          { musicTitle: { $regex: escapedMood, $options: "i" } },
+          { Genre: { $regex: escapedMood, $options: "i" } },
+        );
+      });
+    }
+
+    filters.push({ $or: searchConditions });
   }
+
   if (genre.length) filters.push({ Genre: { $in: genre.map((item) => new RegExp(`^${escapeRegExp(item)}$`, "i")) } });
   if (language) filters.push({ Language: { $regex: `^${escapeRegExp(language)}$`, $options: "i" } });
 
@@ -75,4 +92,3 @@ function normalizeList(value: string[] | string | undefined) {
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-

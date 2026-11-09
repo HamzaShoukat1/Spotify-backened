@@ -32,9 +32,14 @@ async function cleanupEmptyPlaylist(playlistId: string | null, userId: string) {
 export type AgentContext = {
     history?: { role: "user" | "assistant"; content: string }[];
     activePlaylist?: { _id: string; name: string } | null;
+    mood?: string;
 };
 export async function runAgent(userId: string, transcription: string, context?: AgentContext) {
     let systemPrompt = agentSystemPrompt;
+    if (context?.mood) {
+        systemPrompt += `\nUser's detected current mood: "${context.mood}". Tailor thematic searches or playlist generation names to match this aura if applicable.`;
+    }
+
     if (context?.activePlaylist) {
         systemPrompt += `\nCurrently active playlist context: "${context.activePlaylist.name}" (ID: ${context.activePlaylist._id}). If the user refers to "it", "this playlist", or "that playlist" without naming another, prioritize this active playlist.`;
     }
