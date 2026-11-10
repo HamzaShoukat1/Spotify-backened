@@ -42,7 +42,6 @@ export const authorizeDownload = asynchandler(
       throw new Apierror(400, "Song audio file is unavailable for download");
     }
 
-    // 3. Generate secure temporary signed URL
     const signedDownloadUrl = generateSignedDownloadUrl(
       song.music.publicId,
       SIGNED_URL_EXPIRATION_SECONDS
@@ -166,6 +165,22 @@ export const removeDownload = asynchandler(
     return res
       .status(200)
       .json(new Apiresponse(200, null, "Download record removed successfully"));
+  }
+);
+export const removeAllDownloads = asynchandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user?._id;
+    if (!userId || !mongoose.isValidObjectId(userId)) {
+      throw new Apierror(401, "Unauthorized");
+    }
+
+    await Download.deleteMany({
+      user: new mongoose.Types.ObjectId(userId),
+    });
+
+    return res
+      .status(200)
+      .json(new Apiresponse(200, null, "All download records removed successfully"));
   }
 );
 

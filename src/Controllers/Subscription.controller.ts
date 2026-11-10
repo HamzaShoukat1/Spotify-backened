@@ -263,8 +263,6 @@ export const confirmSubscriptionPayment = asynchandler(async (req: Authenticated
     throw new Apierror(400, "A valid subscriptionId is required");
   }
 
-  // Only allow the authenticated owner to confirm a subscription created for
-  // their account; never trust a client supplied Stripe status.
   const localSubscription = await Subscription.findOne({
     user: userId,
     stripeSubscriptionId: subscriptionId,

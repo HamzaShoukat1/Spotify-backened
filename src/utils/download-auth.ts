@@ -3,7 +3,6 @@ import cloudinary from "../config.js";
 import { User } from "../Models/user.model.js";
 import { Subscription } from "../Models/subscription.modal.js";
 
-// Offline entitlement configuration
 export const DEFAULT_OFFLINE_GRACE_PERIOD_DAYS = 30;
 export const SIGNED_URL_EXPIRATION_SECONDS = 3600; // 1 hour
 
@@ -54,7 +53,6 @@ export async function calculateOfflineEntitlement(
     };
   }
 
-  // Grace period: allow up to 30 days of offline playback, but cap at subscription period end if available
   const gracePeriodEnd = new Date(
     serverTime.getTime() + DEFAULT_OFFLINE_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000
   );
