@@ -25,15 +25,15 @@ const app = express();
 
 app.set("trust proxy", 1);
 
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  "http://localhost:3000",
-  "http://localhost:5173",
-].filter(Boolean) as string[];
+// const allowedOrigins = [
+//   process.env.FRONTEND_URL,
+//   "http://localhost:3000",
+//   "http://localhost:5173",
+// ].filter(Boolean) as string[];
 
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: "*",
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -63,7 +63,7 @@ app.use("/music", MusicRoute);
 app.use("/search", SearchRoute);
 app.use("/stream", AnalyticsRoute);
 app.use("/song", LikesRoute);
-app.use("/subscription", SubscriptionRoute); 
+app.use("/subscription", SubscriptionRoute);
 app.use("/api", PlaylistRoute);
 app.use("/api/albums", AlbumRoute);
 app.use("/api/ai-agent", AiAgentRoute);
