@@ -6,6 +6,7 @@ import { uploadCloudinary } from "../utils/upload.cloudinary.js";
 import { Music } from "../Models/music.model.js";
 import { User } from "../Models/user.model.js";
 import mongoose from "mongoose";
+import { Album } from "../Models/album.model.js";
 
 const BecameAnArtist = asynchandler(async (req, res) => {
     const { name, artistType, genres, bio } = req.body;
@@ -200,6 +201,20 @@ const artistuploadmusicnumber = asynchandler(async (req, res) => {
 
     return res.status(200).json(new Apiresponse(200, totalUploadedMusic, 'Total uploaded music retrieved successfully'))
 });
+const artistuploadalbumnumber = asynchandler(async (req, res) => {
+    const artistId = req.user?._id
+
+    if (!artistId) {
+      
+        throw new Apierror(400, "artist id is required")
+
+    }
+
+    const totalUploadedAlbums = await Album.countDocuments({ uploadedBy: artistId });
+
+
+    return res.status(200).json(new Apiresponse(200, totalUploadedAlbums, 'Total uploaded albums retrieved successfully'))
+});
 
 
 
@@ -214,5 +229,6 @@ export {
     UpdateArtistProfile,
     getPublicArtistDetails,
     getPublicArtists,
-    artistuploadmusicnumber
+    artistuploadmusicnumber,
+    artistuploadalbumnumber
 }
